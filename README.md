@@ -11,7 +11,7 @@ Run the following commands (in three separate terminals for now, but later we wi
 
 Stretch driver:
 ```
-ros2 run stretch_core stretch_driver
+ros2 launch stretch_core stretch_driver.launch.py
 ```
 
 Intel RealSense camera driver:
