@@ -17,8 +17,8 @@
     url: 'ws://rocky.hcrlab.cs.washington.edu:9090'
   });
 
+  // Holding place for the FollowJointTrajectory client
   let trajectoryClient;
-  let velocityTopic;
 
   // Create subscription to the camera video topic
   const subscribeToCameraVideo = () => {
@@ -40,15 +40,6 @@
       name: "/stretch_controller/follow_joint_trajectory",
       actionType: "control_msgs/action/FollowJointTrajectory",
     });
-  };
-
-  // Create a handle to the cmd_vel topic
-  const createCmdVelTopic = () => {
-    cmdVelTopic = new ROSLIB.Topic({
-      ros: ros,
-      name: "/stretch/cmd_vel",
-      messageType: "geometry_msgs/Twist",
-    })
   };
 
   // Execute a FollowJointTrajectory action for given joints
