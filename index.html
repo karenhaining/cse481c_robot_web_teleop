@@ -25,7 +25,7 @@
     let cameraImage = document.getElementById("cameraImage");
     let topic = new ROSLIB.Topic({
         ros: ros,
-        name: "/camera/color/image_raw/compressed",
+        name: "/camera/color/image_raw/compressed",//"/camera/color/image_raw/compressed",
         messageType: "sensor_msgs/CompressedImage",
     });
     topic.subscribe((message) => {
@@ -61,6 +61,58 @@
     trajectoryClient.createClient(goal);
   };
 
+  const pickupTile = () => {
+    let goal = new ROSLIB.ActionGoal({
+      trajectory: {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: ['gripper_aperture', 'joint_lift'],
+        points: [
+        {
+            positions: [0.045, 0.7998],
+            time_from_start: { secs: 1, nsecs: 0 },
+          },
+          {
+            positions: [0.015, 0.7998],
+            time_from_start: { secs: 4, nsecs: 0 },
+          },
+          {
+            positions: [0.015, 1.0
+            ],
+            time_from_start: { secs: 7, nsecs: 0 },
+          },
+        ],
+      },
+    });
+    trajectoryClient.createClient(goal);
+  };
+  const dropTile = () => {
+    let goal = new ROSLIB.ActionGoal({
+      trajectory: {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: ['gripper_aperture', 'joint_lift'],
+        points: [
+        {
+            positions: [0.015 , 0.7998],
+            time_from_start: { secs: 1, nsecs: 0 },
+          },
+          {
+            positions: [0.015, 0.7998],
+            time_from_start: { secs: 4, nsecs: 0 },
+          },
+          {
+            positions: [0.045, 0.7998],
+            time_from_start: { secs: 7, nsecs: 0 },
+          },
+          {
+            positions: [0.045, 1.0],
+            time_from_start: { secs: 9, nsecs: 0 },
+          },
+        ],
+      },
+    });
+    trajectoryClient.createClient(goal);
+  };
+
   // Open the gripper using FollowJointTrajectory
   const openGripper = () => {
     executeFollowJointTrajectory(['gripper_aperture'], [0.1])
@@ -71,6 +123,23 @@
     executeFollowJointTrajectory(['gripper_aperture'], [-0.03])
   };
 
+  const rotateCounterclockwise = () => {
+    executeFollowJointTrajectory(['joint_wrist_roll'], [-1.75])
+  };
+
+  const rotateClockwise = () => {
+    executeFollowJointTrajectory(['joint_wrist_roll'], [1.75])
+  };
+
+  const levelGrippper = () => {
+    executeFollowJointTrajectory(['joint_wrist_roll'], [0])
+  };
+
+  const levelPitch = () => {
+    executeFollowJointTrajectory(['joint_wrist_pitch'], [0])
+  };
+
+
   // Move the lift using FollowJointTrajectory
   const moveLiftToTop = () => {
     executeFollowJointTrajectory(['joint_lift'], [1.1]);
@@ -80,6 +149,22 @@
   const moveLiftToMiddle = () => {
     executeFollowJointTrajectory(['joint_lift'], [0.6]);
   };
+
+  const moveCamera = () => {
+    let goal = new ROSLIB.ActionGoal({
+      trajectory: {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: ['joint_head_tilt', 'joint_head_pan'],
+        points: [
+        {
+            positions: [-0.7 , -1.3],
+            time_from_start: { secs: 1, nsecs: 0 },
+          },
+        ],
+      },
+    });
+    trajectoryClient.createClient(goal);
+  }
 
   // Move base forward
   const moveBaseForward = () => {
@@ -118,17 +203,24 @@
 </script>
 
 <body>
-  <h1>Simple roslib Example</h1>
+  <h1>Scrabble Bot Interface v. 0.1</h1>
   <p id="connection">Connecting...</p>
   <div id="camera"><img id="cameraImage" /></div>
   <div id="buttons">
     <ul>
-        <li><button onClick="openGripper()">Open gripper</button></li>
+        <!--<li><button onClick="openGripper()">Open gripper</button></li>
         <li><button onClick="closeGripper()">Close gripper</button></li>
-        <li><button onClick="moveBaseForward()">Move base forward</button></li>
+        <li><button onClick="rotateClockwise()">Rotate gripper clockwise</button></li>
+        <li><button onClick="rotateCounterclockwise()">Rotate gripper counterclockwise</button></li>-->
+        <!--<li><button onClick="levelGrippper()">Level gripper</button></li>-->
+       <!--<li><button onClick="levelPitch()">Flatten Pitch</button></li>-->
+      <li><button onClick="pickupTile()">Pickup Tile</button></li>
+      <li><button onClick="dropTile()"> Drop tile</button></li>
+      <!--<li><button onClick="moveCamera()">Move Camera</button></li>-->
+        <!--<li><button onClick="moveBaseForward()">Move base forward</button></li>
         <li><button onClick="moveBaseBackward()">Move base backward</button></li>
         <li><button onClick="moveLiftToTop()">Move lift to top</button></li>
-        <li><button onClick="moveLiftToMiddle()">Move lift to middle</button></li>
+        <li><button onClick="moveLiftToMiddle()">Move lift to middle</button></li>-->
     </ul>
   </div>
 </body>
