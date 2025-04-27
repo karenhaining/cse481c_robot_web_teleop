@@ -19,7 +19,14 @@
 
   // Holding place for the FollowJointTrajectory client
   let trajectoryClient;
+  let poseModeClient;
+  let trajectoryModeClient;
+  let positionClient;
 
+  const ROWLENGTH = 0.0244;
+  const ROWONE = 0.427;
+  const TABLETOP = 0.777;
+  const COLUMNLENGTH = 0.023
   // Create subscription to the camera video topic
   const subscribeToCameraVideo = () => {
     let cameraImage = document.getElementById("cameraImage");
@@ -42,6 +49,48 @@
     });
   };
 
+  const createTrajectoryModeClient = () => {
+    trajectoryModeClient = new ROSLIB.Service({
+      ros: ros,
+      name : '/switch_to_trajectory_mode',
+      serviceType : 'std_srvs/srv/Trigger'
+    })
+  };
+  const createPositionModeClient = () => {
+    poseModeClient = new ROSLIB.Service({
+      ros: ros,
+      name : '/switch_to_position_mode',
+      serviceType : 'std_srvs/srv/Trigger'
+    })
+  };
+
+  const createPositionClient = () => {
+    poseModeClient = new ROSLIB.Service({
+      ros: ros,
+      name : '/get_joint_states',
+      serviceType : 'std_srvs/srv/Trigger'
+    })
+  };
+
+  const switchToPosition = () => {
+    let request = new ROSLIB.ServiceRequest({})
+
+    poseModeClient.callService(request, function(result) {});
+  };
+
+  const switchToTrajectory = () => {
+    let request = new ROSLIB.ServiceRequest({});
+
+    trajectoryModeClient.callService(request, function(result) {});
+  };
+
+  const getPositions = () => {
+    let request = new ROSLIB.ServiceRequest({});
+
+    let pos = positionClient.callService(request, function(result) {return result});
+    return pos;
+  };
+
   // Execute a FollowJointTrajectory action for given joints
   // See valid joints here: https://github.com/hello-robot/stretch_web_teleop/blob/master/src/shared/util.tsx#L4-L20
   // and joint limits here: https://github.com/hello-robot/stretch_web_teleop/blob/master/src/shared/util.tsx#L304
@@ -61,6 +110,8 @@
     trajectoryClient.createClient(goal);
   };
 
+  
+
   const pickupTile = () => {
     let goal = new ROSLIB.ActionGoal({
       trajectory: {
@@ -68,15 +119,15 @@
         joint_names: ['gripper_aperture', 'joint_lift'],
         points: [
         {
-            positions: [0.045, 0.7998],
+            positions: [0.075, TABLETOP-0.02],
             time_from_start: { secs: 1, nsecs: 0 },
           },
           {
-            positions: [0.015, 0.7998],
+            positions: [0.025, TABLETOP-0.02],
             time_from_start: { secs: 4, nsecs: 0 },
           },
           {
-            positions: [0.015, 1.0
+            positions: [0.025, TABLETOP+0.15
             ],
             time_from_start: { secs: 7, nsecs: 0 },
           },
@@ -85,6 +136,32 @@
     });
     trajectoryClient.createClient(goal);
   };
+
+  const pickupTileFromHolder = () => {
+    let goal = new ROSLIB.ActionGoal({
+      trajectory: {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: ['gripper_aperture', 'joint_lift'],
+        points: [
+        {
+            positions: [0.075, TABLETOP+0.106],
+            time_from_start: { secs: 1, nsecs: 0 },
+          },
+          {
+            positions: [0.025, TABLETOP+0.106],
+            time_from_start: { secs: 4, nsecs: 0 },
+          },
+          {
+            positions: [0.025, TABLETOP+0.175
+            ],
+            time_from_start: { secs: 7, nsecs: 0 },
+          },
+        ],
+      },
+    });
+    trajectoryClient.createClient(goal);
+  };
+
   const dropTile = () => {
     let goal = new ROSLIB.ActionGoal({
       trajectory: {
@@ -92,19 +169,19 @@
         joint_names: ['gripper_aperture', 'joint_lift'],
         points: [
         {
-            positions: [0.015 , 0.7998],
+            positions: [0.025 , TABLETOP-0.02],
             time_from_start: { secs: 1, nsecs: 0 },
           },
           {
-            positions: [0.015, 0.7998],
+            positions: [0.025, TABLETOP-0.02],
             time_from_start: { secs: 4, nsecs: 0 },
           },
           {
-            positions: [0.045, 0.7998],
+            positions: [0.025, TABLETOP-0.02],
             time_from_start: { secs: 7, nsecs: 0 },
           },
           {
-            positions: [0.045, 1.0],
+            positions: [0.075, TABLETOP + 0.15],
             time_from_start: { secs: 9, nsecs: 0 },
           },
         ],
@@ -115,12 +192,12 @@
 
   // Open the gripper using FollowJointTrajectory
   const openGripper = () => {
-    executeFollowJointTrajectory(['gripper_aperture'], [0.1])
+    executeFollowJointTrajectory(['gripper_aperture'], [0.04])
   };
 
   // Close the gripper using FollowJointTrajectory
   const closeGripper = () => {
-    executeFollowJointTrajectory(['gripper_aperture'], [-0.03])
+    executeFollowJointTrajectory(['gripper_aperture'], [0.02])
   };
 
   const rotateCounterclockwise = () => {
@@ -139,6 +216,17 @@
     executeFollowJointTrajectory(['joint_wrist_pitch'], [0])
   };
 
+  const pitchFortyFive = () => {
+    executeFollowJointTrajectory(['joint_wrist_pitch'], [-0.58])
+  };
+
+  const pitchDownForDropFromHolder = () => {
+    executeFollowJointTrajectory(['joint_wrist_pitch'], [-1.3]);
+  }
+
+  const moveArmToHolder = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE-10.555 *ROWLENGTH]);
+  }
 
   // Move the lift using FollowJointTrajectory
   const moveLiftToTop = () => {
@@ -146,8 +234,16 @@
   };
 
   // Move the lift using FollowJointTrajectory
-  const moveLiftToMiddle = () => {
-    executeFollowJointTrajectory(['joint_lift'], [0.6]);
+  const moveLiftToTableTop = () => {
+    executeFollowJointTrajectory(['joint_lift'], [TABLETOP]);
+  };
+
+  const moveLiftToSlightlyAboveTableTop = () => {
+    executeFollowJointTrajectory(['joint_lift'], [TABLETOP + 0.02]);
+  };
+
+  const moveLiftToSlightlyAboveTableTopWhilePitchedForHolderPickup = () => {
+    executeFollowJointTrajectory(['joint_lift'], [TABLETOP + 0.108]);
   };
 
   const moveCamera = () => {
@@ -171,10 +267,101 @@
     executeFollowJointTrajectory(['translate_mobile_base'], [0.1]);
   };
 
+  const moveBaseForwardOneTile = () => {
+    executeFollowJointTrajectory(['translate_mobile_base'], [COLUMNLENGTH]);
+  };
+
+  const moveBaseBackwardOneTile = () => {
+    executeFollowJointTrajectory(['translate_mobile_base'], [-1 * COLUMNLENGTH]);
+  };
+
+  const moveBaseBackwardFuckMe = () => {
+    executeFollowJointTrajectory(['translate_mobile_base'], [-0.025]);
+  }
+
+  const moveArmBackwardOneTile = () => {
+    //let p = getPositions();
+    //console.log(p);
+
+    executeFollowJointTrajectory(['wrist_extension'], [0.1]);
+  };
+
+  const moveArmForwardOneTile = () => {
+
+    executeFollowJointTrajectory(['wrist_extension'], [0.32]);
+  };
+
   // Move base backward
   const moveBaseBackward = () => {
     executeFollowJointTrajectory(['translate_mobile_base'], [-0.1]);
   };
+
+  const rotateHeadClockwiseNinety = () => {
+    executeFollowJointTrajectory(['joint_head_pan'], [-1.45]);
+  };
+  const rotateHeadDown = () => {
+    executeFollowJointTrajectory(['joint_head_tilt'], [-0.55]);
+  };
+
+  const moveArm1 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE]);
+  }
+
+  const moveArm2 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - ROWLENGTH]);
+  }
+
+  const moveArm3 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 2 * ROWLENGTH]);
+  }
+
+  const moveArm4 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 3 * ROWLENGTH]);
+  }
+
+  const moveArm5 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 4 * ROWLENGTH]);
+  }
+
+  const moveArm6 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 5 * ROWLENGTH]);
+  }
+
+  const moveArm7 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 6 * ROWLENGTH]);
+  }
+
+  const moveArm8 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 7 * ROWLENGTH]);
+  }
+
+  const moveArm9 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 8 * ROWLENGTH]);
+  }
+
+  const moveArm10 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 9 * ROWLENGTH]);
+  }
+
+  const moveArm11 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 10 * ROWLENGTH]);
+  }
+
+  const moveArm12 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 11 * ROWLENGTH]);
+  }
+
+  const moveArm13 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 12 * ROWLENGTH]);
+  }
+
+  const moveArm14 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 13 * ROWLENGTH]);
+  }
+
+  const moveArm15 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 14 * ROWLENGTH]);
+  }
 
   // Called when the rosbridge websocket connection is successful
   ros.on('connection', function() {
@@ -185,6 +372,9 @@
   
     subscribeToCameraVideo();
     createTrajectoryClient();
+    createPositionModeClient();
+    createTrajectoryModeClient();
+    createPositionClient();
   });
 
   // Called when the rosbridge websocket connection is failed
@@ -208,20 +398,48 @@
   <div id="camera"><img id="cameraImage" /></div>
   <div id="buttons">
     <ul>
-        <!--<li><button onClick="openGripper()">Open gripper</button></li>
+        <li><button onClick="openGripper()">Open gripper</button></li>
         <li><button onClick="closeGripper()">Close gripper</button></li>
         <li><button onClick="rotateClockwise()">Rotate gripper clockwise</button></li>
-        <li><button onClick="rotateCounterclockwise()">Rotate gripper counterclockwise</button></li>-->
-        <!--<li><button onClick="levelGrippper()">Level gripper</button></li>-->
-       <!--<li><button onClick="levelPitch()">Flatten Pitch</button></li>-->
+        <li><button onClick="rotateCounterclockwise()">Rotate gripper counterclockwise</button></li>
+        <li><button onClick="levelGrippper()">Level gripper</button></li>
+       <li><button onClick="levelPitch()">Flatten Pitch</button></li>
+       <li><button onClick="pitchFortyFive()">Pitch down for holder pickup</button></li>
+       <li><button onClick="pitchDownForDropFromHolder()">Pitch down for drop from holder</button></li>
       <li><button onClick="pickupTile()">Pickup Tile</button></li>
+      <li><button onClick="pickupTileFromHolder()">Pickup Tile From Holder</button></li>
       <li><button onClick="dropTile()"> Drop tile</button></li>
-      <!--<li><button onClick="moveCamera()">Move Camera</button></li>-->
-        <!--<li><button onClick="moveBaseForward()">Move base forward</button></li>
-        <li><button onClick="moveBaseBackward()">Move base backward</button></li>
+      <li><button onClick="rotateHeadClockwiseNinety()">Rotate head clockwise</button></li>
+      <li><button onClick="rotateHeadDown()">Look down</button></li>
         <li><button onClick="moveLiftToTop()">Move lift to top</button></li>
-        <li><button onClick="moveLiftToMiddle()">Move lift to middle</button></li>-->
+        <li><button onClick="moveLiftToTableTop()">Move lift to tabletop</button></li>
+        <li><button onClick="moveLiftToSlightlyAboveTableTop()">Move Lift slightly above tabletop</button></li>
+        <li><button onClick="moveLiftToSlightlyAboveTableTopWhilePitchedForHolderPickup()">Move Lift to Slightly above tabletop while pitched for holder pickup</button></li>
+        <li><button onClick="moveBaseForwardOneTile()">Move base forward one tile</li>
+          <li><button onClick="moveBaseBackwardOneTile()">Move base backward one tile</li>
+            <li><button onClick="moveBaseBackwardFuckMe()">oh fuck me</button></li>
+            <li><button onClick="moveArmToHolder()">Move Arm To Holder</button></li>
     </ul>
+    
   </div>
+  <div id="armbuttons"> <ul> <li> <button onClick="moveArm1()">Move Arm 1</button></li>
+    <li> <button onClick="moveArm2()">Move Arm 2</button></li>
+    <li> <button onClick="moveArm3()">Move Arm 3</button></li>
+    <li> <button onClick="moveArm4()">Move Arm 4</button></li>
+    <li> <button onClick="moveArm5()">Move Arm 5</button></li>
+    <li> <button onClick="moveArm6()">Move Arm 6</button></li>
+    <li> <button onClick="moveArm7()">Move Arm 7</button></li>
+    <li> <button onClick="moveArm8()">Move Arm 8</button></li>
+    <li> <button onClick="moveArm9()">Move Arm 9</button></li>
+    <li> <button onClick="moveArm10()">Move Arm 10</button></li>
+    <li> <button onClick="moveArm11()">Move Arm 11</button></li>
+    <li> <button onClick="moveArm12()">Move Arm 12</button></li>
+    <li> <button onClick="moveArm13()">Move Arm 13</button></li>
+    <li> <button onClick="moveArm14()">Move Arm 14</button></li>
+    <li> <button onClick="moveArm15()">Move Arm 15</button></li>
+
+  
+  
+  </ul></div>
 </body>
 </html>
