@@ -275,7 +275,7 @@
     executeFollowJointTrajectory(['translate_mobile_base'], [-1 * COLUMNLENGTH]);
   };
 
-  const moveBaseBackwardFuckMe = () => {
+  const moveBaseBackwardMislaigned = () => {
     executeFollowJointTrajectory(['translate_mobile_base'], [-0.025]);
   }
 
@@ -417,7 +417,7 @@
         <li><button onClick="moveLiftToSlightlyAboveTableTopWhilePitchedForHolderPickup()">Move Lift to Slightly above tabletop while pitched for holder pickup</button></li>
         <li><button onClick="moveBaseForwardOneTile()">Move base forward one tile</li>
           <li><button onClick="moveBaseBackwardOneTile()">Move base backward one tile</li>
-            <li><button onClick="moveBaseBackwardFuckMe()">oh fuck me</button></li>
+            <li><button onClick="moveBaseBackwardMisaligned()">Move base backward a tiny misaligned bit</button></li>
             <li><button onClick="moveArmToHolder()">Move Arm To Holder</button></li>
     </ul>
     
