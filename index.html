@@ -26,7 +26,8 @@
   const ROWLENGTH = 0.0244;
   const ROWONE = 0.427;
   const TABLETOP = 0.777;
-  const COLUMNLENGTH = 0.023
+  const COLUMNLENGTH = 0.023;
+  const GRIPPER_HOLDING = 0.023;
   // Create subscription to the camera video topic
   const subscribeToCameraVideo = () => {
     let cameraImage = document.getElementById("cameraImage");
@@ -119,15 +120,15 @@
         joint_names: ['gripper_aperture', 'joint_lift'],
         points: [
         {
-            positions: [0.075, TABLETOP-0.02],
+            positions: [0.055, TABLETOP-0.02],
             time_from_start: { secs: 1, nsecs: 0 },
           },
           {
-            positions: [0.025, TABLETOP-0.02],
+            positions: [GRIPPER_HOLDING, TABLETOP-0.02],
             time_from_start: { secs: 4, nsecs: 0 },
           },
           {
-            positions: [0.025, TABLETOP+0.15
+            positions: [GRIPPER_HOLDING, TABLETOP+0.15
             ],
             time_from_start: { secs: 7, nsecs: 0 },
           },
@@ -144,15 +145,15 @@
         joint_names: ['gripper_aperture', 'joint_lift'],
         points: [
         {
-            positions: [0.075, TABLETOP+0.106],
+            positions: [0.055, TABLETOP+0.106],
             time_from_start: { secs: 1, nsecs: 0 },
           },
           {
-            positions: [0.025, TABLETOP+0.106],
+            positions: [GRIPPER_HOLDING, TABLETOP+0.106],
             time_from_start: { secs: 4, nsecs: 0 },
           },
           {
-            positions: [0.025, TABLETOP+0.175
+            positions: [GRIPPER_HOLDING, TABLETOP+0.175
             ],
             time_from_start: { secs: 7, nsecs: 0 },
           },
@@ -169,15 +170,15 @@
         joint_names: ['gripper_aperture', 'joint_lift'],
         points: [
         {
-            positions: [0.025 , TABLETOP-0.02],
+            positions: [GRIPPER_HOLDING , TABLETOP-0.02],
             time_from_start: { secs: 1, nsecs: 0 },
           },
           {
-            positions: [0.025, TABLETOP-0.02],
+            positions: [GRIPPER_HOLDING, TABLETOP-0.02],
             time_from_start: { secs: 4, nsecs: 0 },
           },
           {
-            positions: [0.025, TABLETOP-0.02],
+            positions: [GRIPPER_HOLDING, TABLETOP-0.02],
             time_from_start: { secs: 7, nsecs: 0 },
           },
           {
@@ -192,7 +193,7 @@
 
   // Open the gripper using FollowJointTrajectory
   const openGripper = () => {
-    executeFollowJointTrajectory(['gripper_aperture'], [0.04])
+    executeFollowJointTrajectory(['gripper_aperture'], [0.06])
   };
 
   // Close the gripper using FollowJointTrajectory
@@ -220,12 +221,16 @@
     executeFollowJointTrajectory(['joint_wrist_pitch'], [-0.58])
   };
 
+  const pitchForDropping = () => {
+    executeFollowJointTrajectory(['joint_wrist_pitch'], [-0.75])
+  };
+
   const pitchDownForDropFromHolder = () => {
     executeFollowJointTrajectory(['joint_wrist_pitch'], [-1.3]);
   }
 
   const moveArmToHolder = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE-10.555 *ROWLENGTH]);
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE-10.8 *ROWLENGTH]);
   }
 
   // Move the lift using FollowJointTrajectory
@@ -244,6 +249,10 @@
 
   const moveLiftToSlightlyAboveTableTopWhilePitchedForHolderPickup = () => {
     executeFollowJointTrajectory(['joint_lift'], [TABLETOP + 0.108]);
+  };
+
+  const moveLiftToSlightlyAboveTableTopWhilePitchedFullyDownwardsOrWhenInOtherCircumstancesThatWouldGenerallyWantTheArmNotAsLow= () => {
+    executeFollowJointTrajectory(['joint_lift'], [TABLETOP + 0.13]);
   };
 
   const moveCamera = () => {
@@ -270,12 +279,15 @@
   const moveBaseForwardOneTile = () => {
     executeFollowJointTrajectory(['translate_mobile_base'], [COLUMNLENGTH]);
   };
+  const moveBaseForwardTiny = () => {
+    executeFollowJointTrajectory(['translate_mobile_base'], [COLUMNLENGTH/4]);
+  };
 
   const moveBaseBackwardOneTile = () => {
     executeFollowJointTrajectory(['translate_mobile_base'], [-1 * COLUMNLENGTH]);
   };
 
-  const moveBaseBackwardMislaigned = () => {
+  const moveBaseBackwardMisaligned = () => {
     executeFollowJointTrajectory(['translate_mobile_base'], [-0.025]);
   }
 
@@ -303,12 +315,28 @@
     executeFollowJointTrajectory(['joint_head_tilt'], [-0.55]);
   };
 
+  const moveArmNegative1 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE + 2 * ROWLENGTH]);
+  }
+
+  const moveArm0 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE + ROWLENGTH]);
+  }
+
   const moveArm1 = () => {
     executeFollowJointTrajectory(['wrist_extension'], [ROWONE]);
   }
 
+  const moveArm1point5 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 0.5 * ROWLENGTH]);
+  }
+
   const moveArm2 = () => {
     executeFollowJointTrajectory(['wrist_extension'], [ROWONE - ROWLENGTH]);
+  }
+
+  const moveArm2point5 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 1.5 * ROWLENGTH]);
   }
 
   const moveArm3 = () => {
@@ -405,6 +433,7 @@
         <li><button onClick="levelGrippper()">Level gripper</button></li>
        <li><button onClick="levelPitch()">Flatten Pitch</button></li>
        <li><button onClick="pitchFortyFive()">Pitch down for holder pickup</button></li>
+       <li><button onClick="pitchForDropping()">Pitch down for extra dropping</button></li>
        <li><button onClick="pitchDownForDropFromHolder()">Pitch down for drop from holder</button></li>
       <li><button onClick="pickupTile()">Pickup Tile</button></li>
       <li><button onClick="pickupTileFromHolder()">Pickup Tile From Holder</button></li>
@@ -415,15 +444,23 @@
         <li><button onClick="moveLiftToTableTop()">Move lift to tabletop</button></li>
         <li><button onClick="moveLiftToSlightlyAboveTableTop()">Move Lift slightly above tabletop</button></li>
         <li><button onClick="moveLiftToSlightlyAboveTableTopWhilePitchedForHolderPickup()">Move Lift to Slightly above tabletop while pitched for holder pickup</button></li>
+        <li><button onClick="moveLiftToSlightlyAboveTableTopWhilePitchedFullyDownwardsOrWhenInOtherCircumstancesThatWouldGenerallyWantTheArmNotAsLow()">Move slightly down y'know</button></li>
         <li><button onClick="moveBaseForwardOneTile()">Move base forward one tile</li>
+          <li><button onClick="moveBaseForwardTiny()">Move base forward a tiny bit</button></li>
           <li><button onClick="moveBaseBackwardOneTile()">Move base backward one tile</li>
             <li><button onClick="moveBaseBackwardMisaligned()">Move base backward a tiny misaligned bit</button></li>
             <li><button onClick="moveArmToHolder()">Move Arm To Holder</button></li>
     </ul>
     
   </div>
-  <div id="armbuttons"> <ul> <li> <button onClick="moveArm1()">Move Arm 1</button></li>
+  <div id="armbuttons"> <ul> 
+
+    <li> <button onClick="moveArmNegative1()">Move Arm -1</button></li>
+    <li> <button onClick="moveArm0()">Move Arm 0</button></li>
+    <li> <button onClick="moveArm1()">Move Arm 1</button></li>
+    <li> <button onClick="moveArm1point5()">Move Arm 1.5</button></li>
     <li> <button onClick="moveArm2()">Move Arm 2</button></li>
+    <li> <button onClick="moveArm2point5()">Move Arm 2.5</button></li>
     <li> <button onClick="moveArm3()">Move Arm 3</button></li>
     <li> <button onClick="moveArm4()">Move Arm 4</button></li>
     <li> <button onClick="moveArm5()">Move Arm 5</button></li>
