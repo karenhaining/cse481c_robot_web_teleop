@@ -20,14 +20,14 @@
   // Holding place for the FollowJointTrajectory client
   let trajectoryClient;
   let poseModeClient;
-  let trajectoryModeClient;
+  let navigationModeClient;
   let positionClient;
 
   const ROWLENGTH = 0.0244;
   const ROWONE = 0.427;
   const TABLETOP = 0.777;
   const COLUMNLENGTH = 0.023;
-  const GRIPPER_HOLDING = 0.023;
+  const GRIPPER_HOLDING = 0.033;
   // Create subscription to the camera video topic
   const subscribeToCameraVideo = () => {
     let cameraImage = document.getElementById("cameraImage");
@@ -50,10 +50,10 @@
     });
   };
 
-  const createTrajectoryModeClient = () => {
-    trajectoryModeClient = new ROSLIB.Service({
+  const createNavigationModeClient = () => {
+    navigationModeClient = new ROSLIB.Service({
       ros: ros,
-      name : '/switch_to_trajectory_mode',
+      name : '/switch_to_navigation_mode',
       serviceType : 'std_srvs/srv/Trigger'
     })
   };
@@ -66,7 +66,7 @@
   };
 
   const createPositionClient = () => {
-    poseModeClient = new ROSLIB.Service({
+    positionClient = new ROSLIB.Service({
       ros: ros,
       name : '/get_joint_states',
       serviceType : 'std_srvs/srv/Trigger'
@@ -76,20 +76,20 @@
   const switchToPosition = () => {
     let request = new ROSLIB.ServiceRequest({})
 
-    poseModeClient.callService(request, function(result) {});
+    poseModeClient.callService(request, () => {console.log("In position mode")});
   };
 
-  const switchToTrajectory = () => {
+  const switchToNavigation = () => {
     let request = new ROSLIB.ServiceRequest({});
 
-    trajectoryModeClient.callService(request, function(result) {});
+    navigationModeClient.callService(request, () => {console.log("In navigation mode")});
   };
 
   const getPositions = () => {
     let request = new ROSLIB.ServiceRequest({});
-
-    let pos = positionClient.callService(request, function(result) {return result});
-    return pos;
+    let output = {};
+    let pos = positionClient.callService(request, (result) => {console.log("output is:"); console.log(result); output = result;});
+    return output;
   };
 
   // Execute a FollowJointTrajectory action for given joints
@@ -120,7 +120,7 @@
         joint_names: ['gripper_aperture', 'joint_lift'],
         points: [
         {
-            positions: [0.055, TABLETOP-0.02],
+            positions: [GRIPPER_HOLDING + 0.01, TABLETOP-0.02],
             time_from_start: { secs: 1, nsecs: 0 },
           },
           {
@@ -145,7 +145,7 @@
         joint_names: ['gripper_aperture', 'joint_lift'],
         points: [
         {
-            positions: [0.055, TABLETOP+0.106],
+            positions: [GRIPPER_HOLDING + 0.01, TABLETOP+0.106],
             time_from_start: { secs: 1, nsecs: 0 },
           },
           {
@@ -182,7 +182,7 @@
             time_from_start: { secs: 7, nsecs: 0 },
           },
           {
-            positions: [0.075, TABLETOP + 0.15],
+            positions: [GRIPPER_HOLDING + 0.01, TABLETOP + 0.15],
             time_from_start: { secs: 9, nsecs: 0 },
           },
         ],
@@ -289,6 +289,19 @@
 
   const moveBaseBackwardMisaligned = () => {
     executeFollowJointTrajectory(['translate_mobile_base'], [-0.025]);
+  }
+
+  const switchModeNavigation = () => {
+    switchToNavigation();
+  }
+
+  const switchModePosition = () => {
+    switchToPosition();
+  }
+
+  const logPositions = () => {
+    let p = getPositions();
+    console.log(p);
   }
 
   const moveArmBackwardOneTile = () => {
@@ -401,7 +414,7 @@
     subscribeToCameraVideo();
     createTrajectoryClient();
     createPositionModeClient();
-    createTrajectoryModeClient();
+    createNavigationModeClient();
     createPositionClient();
   });
 
@@ -450,6 +463,9 @@
           <li><button onClick="moveBaseBackwardOneTile()">Move base backward one tile</li>
             <li><button onClick="moveBaseBackwardMisaligned()">Move base backward a tiny misaligned bit</button></li>
             <li><button onClick="moveArmToHolder()">Move Arm To Holder</button></li>
+            <li><button onclick="switchModePosition()">Switch to Position Mode</button></li>
+            <li><button onClick="switchModeNavigation()">Switch to navigation mode</button></li>
+            <li><button onClick="logPositions()"> Output positions to console</button></li>
     </ul>
     
   </div>
@@ -478,5 +494,7 @@
   
   
   </ul></div>
+  <button style="height:200px;width:200px"> Play Word</button>
+
 </body>
 </html>
