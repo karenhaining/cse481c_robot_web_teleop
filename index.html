@@ -23,7 +23,12 @@
   let navigationModeClient;
   let positionClient;
   let jointState;
+  let arucoMarkerArray;
 
+  let poses = {};
+
+  const JOINTNAMES = ["wrist_extension", "joint_lift", "joint_head_pan", "joint_head_tilt",
+                     "joint_wrist_yaw", "joint_wrist_pitch", "joint_wrist_roll", "gripper_aperture"]
   const ROWLENGTH = 0.0244;
   const ROWONE = 0.427;
   const TABLETOP = 0.777;
@@ -51,6 +56,18 @@
 
     jointStateTopic.subscribe((message) => {
         jointState = message;
+    });
+  };
+
+  const subscribeToArucoMarkerArray = () => {
+    const ArucoMarkerArrayTopic = new ROSLIB.Topic({
+            ros: ros,
+            name: "/aruco/marker_array",
+            messageType: "visualization_msgs/msg/MarkerArray",
+    });
+
+    ArucoMarkerArrayTopic.subscribe((message) => {
+        arucoMarkerArray = message;
     });
   };
 
@@ -104,6 +121,25 @@
     let pos = positionClient.callService(request, (result) => {console.log("output is:"); console.log(result); output = result;});
     return output;
   };
+
+
+  const savePosition = (name) => {
+    let positions = jointState['position'];
+    let gripper_aperture = positions[12] * 2;
+    back = positions.slice(6, 11);
+    front = positions.slice(0, 2);
+    positions = front.concat(back)
+    positions.push(gripper_aperture);
+    console.log(positions)
+    
+    poses[name] = positions;
+  };
+
+  const loadAndMoveToPosition = (name) => {
+    let positions = poses[name];
+    console.log(positions);
+    executeFollowJointTrajectory(JOINTNAMES, positions);
+  }
 
   // Execute a FollowJointTrajectory action for given joints
   // See valid joints here: https://github.com/hello-robot/stretch_web_teleop/blob/master/src/shared/util.tsx#L4-L20
@@ -268,6 +304,16 @@
     executeFollowJointTrajectory(['joint_lift'], [TABLETOP + 0.13]);
   };
 
+  const moveLiftDownRelative = () => {
+    let currPos = jointState['position'][1];
+    executeFollowJointTrajectory(['joint_lift'], [currPos - 0.05]);
+  };
+
+  const moveLiftUpRelative = () => {
+    let currPos = jointState['position'][1];
+    executeFollowJointTrajectory(['joint_lift'], [currPos + 0.05]);
+  };
+
   const moveCamera = () => {
     let goal = new ROSLIB.ActionGoal({
       trajectory: {
@@ -302,19 +348,23 @@
 
   const moveBaseBackwardMisaligned = () => {
     executeFollowJointTrajectory(['translate_mobile_base'], [-0.025]);
-  }
+  };
 
   const switchModeNavigation = () => {
     switchToNavigation();
-  }
+  };
 
   const switchModePosition = () => {
     switchToPosition();
-  }
+  };
 
   const logPositions = () => {
     console.log(jointState);
-  }
+  };
+
+  const logArucoMarkers = () => {
+    console.log(arucoMarkerArray);
+  };
 
   const moveArmBackwardOneTile = () => {
     let currPos = jointState['position'][0]
@@ -337,6 +387,11 @@
   const rotateHeadDown = () => {
     executeFollowJointTrajectory(['joint_head_tilt'], [-0.55]);
   };
+
+  const rotateHeadRelativeCounterclockwise = () => {
+    let currPos = jointState['position'][6]
+    executeFollowJointTrajectory(['joint_head_pan'], [currPos + 0.1])
+  }
 
 
   const moveArmNegative1 = () => {
@@ -428,6 +483,7 @@
     createNavigationModeClient();
     createPositionClient();
     subscribeToJointStates();
+    subscribeToArucoMarkerArray();
   });
 
   // Called when the rosbridge websocket connection is failed
@@ -464,6 +520,7 @@
       <li><button onClick="pickupTileFromHolder()">Pickup Tile From Holder</button></li>
       <li><button onClick="dropTile()"> Drop tile</button></li>
       <li><button onClick="rotateHeadClockwiseNinety()">Rotate head clockwise</button></li>
+      <li><button onClick="rotateHeadRelativeCounterclockwise()">Rotate head counterclockwise relative</button></li>
       <li><button onClick="rotateHeadDown()">Look down</button></li>
         <li><button onClick="moveLiftToTop()">Move lift to top</button></li>
         <li><button onClick="moveLiftToTableTop()">Move lift to tabletop</button></li>
@@ -478,8 +535,13 @@
             <li><button onclick="switchModePosition()">Switch to Position Mode</button></li>
             <li><button onClick="switchModeNavigation()">Switch to navigation mode</button></li>
             <li><button onClick="logPositions()"> Output positions to console</button></li>
+            <li><button onClick="logArucoMarkers()">Output aruco markers to console</button></li>
+            <li><button onClick="moveLiftDownRelative()">Move lift down relative</button></li>
+            <li><button onClick="moveLiftUpRelative()">Move lift up relative</button></li>
             <li> <button onClick="moveArmForwardOneTile()"> Move Arm Forward One Tile</button></li>
             <li> <button onClick="moveArmBackwardOneTile()">Move Arm Backward One Tile</button></li>
+            <li> <button onClick="savePosition('test')">Save position</button></li>
+            <li> <button onClick="loadAndMoveToPosition('test')">Load and move to saved position </button></li>
     </ul>
     
   </div>
