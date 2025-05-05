@@ -22,6 +22,7 @@
   let poseModeClient;
   let navigationModeClient;
   let positionClient;
+  let jointState;
 
   const ROWLENGTH = 0.0244;
   const ROWONE = 0.427;
@@ -33,11 +34,23 @@
     let cameraImage = document.getElementById("cameraImage");
     let topic = new ROSLIB.Topic({
         ros: ros,
-        name: "/camera/color/image_raw/compressed",//"/camera/color/image_raw/compressed",
+        name: "/camera/color/image_raw/compressed",
         messageType: "sensor_msgs/CompressedImage",
     });
     topic.subscribe((message) => {
       cameraImage.src = "data:image/jpg;base64," + message.data;
+    });
+  };
+
+  const subscribeToJointStates = () => {
+    const jointStateTopic = new ROSLIB.Topic({
+            ros: ros,
+            name: "/stretch/joint_states",
+            messageType: "sensor_msgs/msg/JointState",
+    });
+
+    jointStateTopic.subscribe((message) => {
+        jointState = message;
     });
   };
 
@@ -300,20 +313,17 @@
   }
 
   const logPositions = () => {
-    let p = getPositions();
-    console.log(p);
+    console.log(jointState);
   }
 
   const moveArmBackwardOneTile = () => {
-    //let p = getPositions();
-    //console.log(p);
-
-    executeFollowJointTrajectory(['wrist_extension'], [0.1]);
+    let currPos = jointState['position'][0]
+    executeFollowJointTrajectory(['wrist_extension'], [currPos - ROWLENGTH]);
   };
 
   const moveArmForwardOneTile = () => {
-
-    executeFollowJointTrajectory(['wrist_extension'], [0.32]);
+    let currPos = jointState['position'][0]
+    executeFollowJointTrajectory(['wrist_extension'], [currPos + ROWLENGTH]);
   };
 
   // Move base backward
@@ -327,6 +337,7 @@
   const rotateHeadDown = () => {
     executeFollowJointTrajectory(['joint_head_tilt'], [-0.55]);
   };
+
 
   const moveArmNegative1 = () => {
     executeFollowJointTrajectory(['wrist_extension'], [ROWONE + 2 * ROWLENGTH]);
@@ -416,6 +427,7 @@
     createPositionModeClient();
     createNavigationModeClient();
     createPositionClient();
+    subscribeToJointStates();
   });
 
   // Called when the rosbridge websocket connection is failed
@@ -466,6 +478,8 @@
             <li><button onclick="switchModePosition()">Switch to Position Mode</button></li>
             <li><button onClick="switchModeNavigation()">Switch to navigation mode</button></li>
             <li><button onClick="logPositions()"> Output positions to console</button></li>
+            <li> <button onClick="moveArmForwardOneTile()"> Move Arm Forward One Tile</button></li>
+            <li> <button onClick="moveArmBackwardOneTile()">Move Arm Backward One Tile</button></li>
     </ul>
     
   </div>
