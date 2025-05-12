@@ -392,83 +392,7 @@
     let currPos = jointState['position'][6]
     executeFollowJointTrajectory(['joint_head_pan'], [currPos + 0.1])
   }
-
-
-  const moveArmNegative1 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE + 2 * ROWLENGTH]);
-  }
-
-  const moveArm0 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE + ROWLENGTH]);
-  }
-
-  const moveArm1 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE]);
-  }
-
-  const moveArm1point5 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 0.5 * ROWLENGTH]);
-  }
-
-  const moveArm2 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - ROWLENGTH]);
-  }
-
-  const moveArm2point5 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 1.5 * ROWLENGTH]);
-  }
-
-  const moveArm3 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 2 * ROWLENGTH]);
-  }
-
-  const moveArm4 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 3 * ROWLENGTH]);
-  }
-
-  const moveArm5 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 4 * ROWLENGTH]);
-  }
-
-  const moveArm6 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 5 * ROWLENGTH]);
-  }
-
-  const moveArm7 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 6 * ROWLENGTH]);
-  }
-
-  const moveArm8 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 7 * ROWLENGTH]);
-  }
-
-  const moveArm9 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 8 * ROWLENGTH]);
-  }
-
-  const moveArm10 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 9 * ROWLENGTH]);
-  }
-
-  const moveArm11 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 10 * ROWLENGTH]);
-  }
-
-  const moveArm12 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 11 * ROWLENGTH]);
-  }
-
-  const moveArm13 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 12 * ROWLENGTH]);
-  }
-
-  const moveArm14 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 13 * ROWLENGTH]);
-  }
-
-  const moveArm15 = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 14 * ROWLENGTH]);
-  }
+  
 
   // Called when the rosbridge websocket connection is successful
   ros.on('connection', function() {
@@ -545,31 +469,7 @@
     </ul>
     
   </div>
-  <div id="armbuttons"> <ul> 
-
-    <li> <button onClick="moveArmNegative1()">Move Arm -1</button></li>
-    <li> <button onClick="moveArm0()">Move Arm 0</button></li>
-    <li> <button onClick="moveArm1()">Move Arm 1</button></li>
-    <li> <button onClick="moveArm1point5()">Move Arm 1.5</button></li>
-    <li> <button onClick="moveArm2()">Move Arm 2</button></li>
-    <li> <button onClick="moveArm2point5()">Move Arm 2.5</button></li>
-    <li> <button onClick="moveArm3()">Move Arm 3</button></li>
-    <li> <button onClick="moveArm4()">Move Arm 4</button></li>
-    <li> <button onClick="moveArm5()">Move Arm 5</button></li>
-    <li> <button onClick="moveArm6()">Move Arm 6</button></li>
-    <li> <button onClick="moveArm7()">Move Arm 7</button></li>
-    <li> <button onClick="moveArm8()">Move Arm 8</button></li>
-    <li> <button onClick="moveArm9()">Move Arm 9</button></li>
-    <li> <button onClick="moveArm10()">Move Arm 10</button></li>
-    <li> <button onClick="moveArm11()">Move Arm 11</button></li>
-    <li> <button onClick="moveArm12()">Move Arm 12</button></li>
-    <li> <button onClick="moveArm13()">Move Arm 13</button></li>
-    <li> <button onClick="moveArm14()">Move Arm 14</button></li>
-    <li> <button onClick="moveArm15()">Move Arm 15</button></li>
-
   
-  
-  </ul></div>
   <button style="height:200px;width:200px"> Play Word</button>
 
 </body>
