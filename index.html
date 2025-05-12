@@ -6,8 +6,10 @@
 <style>
   ul li { margin-bottom: 20px; list-style: none; }
   #camera { display: none; }
-  #buttons { display: none; position: relative; left: 250px; top:-100px; }
-  img#cameraImage { transform: rotate(90deg); position: relative; left: -80px; top: 100px;}
+  #buttons { display: none; position: relative; left: 10px; top:-2000; }
+  img#cameraImage { transform: rotate(90deg); position: relative; left: -250px; top: 300px;}
+  #control_buttons{position: relative; left: 900px; top: -1040px;}
+  #arm_buttons{position: relative; left: 1400px; top: -2440px;}
 </style>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hello-vinitha/roslibjs@ros2actionclient/build/roslib.min.js"></script>
@@ -125,19 +127,19 @@
 
   const savePosition = (name) => {
     let positions = jointState['position'];
-    let gripper_aperture = positions[12] * 2;
+    let gripper_aperture = positions[12] / 3;  // TODO: These values *seem* correct, but it's guesswork.
     back = positions.slice(6, 11);
     front = positions.slice(0, 2);
     positions = front.concat(back)
     positions.push(gripper_aperture);
-    console.log(positions)
+    console.log("saved position: " + positions)
     
     poses[name] = positions;
   };
 
   const loadAndMoveToPosition = (name) => {
     let positions = poses[name];
-    console.log(positions);
+    console.log("loaded position: " + positions);
     executeFollowJointTrajectory(JOINTNAMES, positions);
   }
 
@@ -160,7 +162,139 @@
     trajectoryClient.createClient(goal);
   };
 
-  
+  const savePositionName = () => {
+    posname = document.getElementById('pos_name').value;
+    savePosition(posname)
+    addPositionNameAndButton(posname)
+  }
+
+  const addPositionNameAndButton = (name) => {
+    // overall div
+    const newDiv = document.createElement("div");
+    newDiv.id = ("d" + name);
+
+    // Play button
+    const newButton = document.createElement("button");
+    newButton.onclick = function(){loadAndMoveToPosition(name)}
+    const newContent = document.createTextNode(name);
+    newButton.appendChild(newContent);
+
+    // Delete button
+    const delButton = document.createElement("button");
+    delButton.onclick = function(){deletePose(name)}
+    const delContent = document.createTextNode("Delete pose");
+    delButton.appendChild(delContent);
+
+    // Order selector for multi-pose loader
+    const newSel = document.createElement("select");
+    newSel.className = "poseReplaySel";
+    newSel.name = name;
+    
+    // "Do not use" option
+    const dontuse = document.createElement("option");
+    dontuse.value = "" + -1
+    const optionText = document.createTextNode("Do not include pose in replay sequence");
+    dontuse.appendChild(optionText);
+    newSel.appendChild(dontuse);
+
+    // break
+    const newBr = document.createElement("br");
+
+    var count = 1;
+    for (var i in poses) {
+      const option = document.createElement("option");
+      option.value = "" + count;
+      const optionText = document.createTextNode("" + count);
+      option.appendChild(optionText);
+    
+      newSel.appendChild(option);
+      count++;
+    }
+
+    // add a new step option to all existing selectors
+    selectors = document.getElementsByClassName("poseReplaySel")
+    for (let i = 0; i < selectors.length; i++) {
+      const option = document.createElement("option");
+      option.value = "" + count - 1;
+      const optionText = document.createTextNode("" + count - 1);
+      option.appendChild(optionText);
+      selectors[i].appendChild(option);
+    }
+
+    const posesDiv = document.getElementById("saved_poses");
+    newDiv.appendChild(newButton);
+    newDiv.appendChild(newSel);
+    newDiv.appendChild(delButton);
+    newDiv.appendChild(newBr);
+    posesDiv.appendChild(newDiv);
+  }
+
+  const clearPoses = () => {
+    const node = document.getElementById("saved_poses")
+    while (node.firstChild) {
+      node.removeChild(node.firstChild);
+    }
+    poses = {};
+  }
+
+  const deletePose = (name) => {
+    const node = document.getElementById("saved_poses");
+    const children = node.childNodes;
+    // find and remove the child from the site
+    for (let i = 0; i < children.length; i++) {
+      if (children[i].id == ("d" + name)) {
+        node.removeChild(children[i]);
+      }
+    }
+    // find and remove the child from the dict
+    let dictLen = Object.keys(poses).length;
+    delete poses[name];
+
+    // delete the dictLen child option from the selectors
+    // add a new step option to all existing selectors
+    selectors = document.getElementsByClassName("poseReplaySel")
+    for (let i = 0; i < selectors.length; i++) {
+      selector = selectors[i];
+      for (let j = 0; j <  selector.length; j++) {
+        if (selector[j].value == dictLen) {
+          selector.removeChild(selector[j]);
+        }
+      }
+    }
+  }
+
+  const replayPoseSequence = () => {
+    selectors = document.getElementsByClassName("poseReplaySel");
+    poseReplay = {}
+    let max = 0;
+    for (let i = 0; i < selectors.length; i++) {
+      if (selectors[i].value != -1) {
+        let offset = 0;
+        max = selectors[i].value + "." +  offset;
+        while (poseReplay[max]) {
+          offset++;
+          max = selectors[i].value + "." +  offset;
+        }
+        poseReplay[max] = selectors[i].name;
+      }
+    }
+    
+    let keysList = Object.keys(poseReplay);
+    keysList.sort();
+    for (let i = 0; i < keysList.length; i++) {
+      loadAndMoveToPosition(poseReplay[keysList[i]]);
+      sleep(4000);
+    }
+  }
+
+  function sleep(milliseconds) {
+    var start = new Date().getTime();
+    while (true) {
+      if ((new Date().getTime() - start) > milliseconds){
+        break;
+      }
+    }
+  }
 
   const pickupTile = () => {
     let goal = new ROSLIB.ActionGoal({
@@ -242,7 +376,7 @@
 
   // Open the gripper using FollowJointTrajectory
   const openGripper = () => {
-    executeFollowJointTrajectory(['gripper_aperture'], [0.06])
+    executeFollowJointTrajectory(['gripper_aperture'], [0.08])
   };
 
   // Close the gripper using FollowJointTrajectory
@@ -392,7 +526,83 @@
     let currPos = jointState['position'][6]
     executeFollowJointTrajectory(['joint_head_pan'], [currPos + 0.1])
   }
-  
+
+  // Arm buttons
+  const moveArmNegative1 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE + 2 * ROWLENGTH]);
+  }
+
+  const moveArm0 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE + ROWLENGTH]);
+  }
+
+  const moveArm1 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE]);
+  }
+
+  const moveArm1point5 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 0.5 * ROWLENGTH]);
+  }
+
+  const moveArm2 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - ROWLENGTH]);
+  }
+
+  const moveArm2point5 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 1.5 * ROWLENGTH]);
+  }
+
+  const moveArm3 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 2 * ROWLENGTH]);
+  }
+
+  const moveArm4 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 3 * ROWLENGTH]);
+  }
+
+  const moveArm5 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 4 * ROWLENGTH]);
+  }
+
+  const moveArm6 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 5 * ROWLENGTH]);
+  }
+
+  const moveArm7 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 6 * ROWLENGTH]);
+  }
+
+  const moveArm8 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 7 * ROWLENGTH]);
+  }
+
+  const moveArm9 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 8 * ROWLENGTH]);
+  }
+
+  const moveArm10 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 9 * ROWLENGTH]);
+  }
+
+  const moveArm11 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 10 * ROWLENGTH]);
+  }
+
+  const moveArm12 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 11 * ROWLENGTH]);
+  }
+
+  const moveArm13 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 12 * ROWLENGTH]);
+  }
+
+  const moveArm14 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 13 * ROWLENGTH]);
+  }
+
+  const moveArm15 = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [ROWONE - 14 * ROWLENGTH]);
+  }
 
   // Called when the rosbridge websocket connection is successful
   ros.on('connection', function() {
@@ -426,51 +636,82 @@
 </script>
 
 <body>
-  <h1>Scrabble Bot Interface v. 0.1</h1>
+  <h1>Crabble Interface v. 0.2</h1>
   <p id="connection">Connecting...</p>
-  <div id="camera"><img id="cameraImage" /></div>
   <div id="buttons">
+    <p>Save poses here:</p>
     <ul>
-        <li><button onClick="openGripper()">Open gripper</button></li>
-        <li><button onClick="closeGripper()">Close gripper</button></li>
-        <li><button onClick="rotateClockwise()">Rotate gripper clockwise</button></li>
-        <li><button onClick="rotateCounterclockwise()">Rotate gripper counterclockwise</button></li>
-        <li><button onClick="levelGrippper()">Level gripper</button></li>
-       <li><button onClick="levelPitch()">Flatten Pitch</button></li>
-       <li><button onClick="pitchFortyFive()">Pitch down for holder pickup</button></li>
-       <li><button onClick="pitchForDropping()">Pitch down for extra dropping</button></li>
-       <li><button onClick="pitchDownForDropFromHolder()">Pitch down for drop from holder</button></li>
+      <li><p>Position name:</p></li>
+      <li><input id="pos_name" name="Position name"></li>
+      <li><button onClick="savePositionName()">Save position</button></li>
+      <li><button onClick="clearPoses()">Clear saved positions</button></li>
+    </ul>
+    <p>Saved poses (click on the pose button to replay pose):</p>
+  </div>
+  <div id="saved_poses"></div>
+  <button onClick="replayPoseSequence()">Replay selected positions in order</button>
+  <div id="camera"><img id="cameraImage" /></div>
+  <div id="control_buttons">
+    <p>General Teleop Buttons:</p>
+    <ul>
+      <li><button onClick="openGripper()">Open gripper</button></li>
+      <li><button onClick="closeGripper()">Close gripper</button></li>
+      <li><button onClick="rotateClockwise()">Rotate gripper clockwise</button></li>
+      <li><button onClick="rotateCounterclockwise()">Rotate gripper counterclockwise</button></li>
+      <li><button onClick="levelGrippper()">Level gripper</button></li>
+      <li><button onClick="levelPitch()">Flatten Pitch</button></li>
+      <li><button onClick="pitchFortyFive()">Pitch down for holder pickup</button></li>
+      <li><button onClick="pitchForDropping()">Pitch down for extra dropping</button></li>
+      <li><button onClick="pitchDownForDropFromHolder()">Pitch down for drop from holder</button></li>
       <li><button onClick="pickupTile()">Pickup Tile</button></li>
       <li><button onClick="pickupTileFromHolder()">Pickup Tile From Holder</button></li>
       <li><button onClick="dropTile()"> Drop tile</button></li>
       <li><button onClick="rotateHeadClockwiseNinety()">Rotate head clockwise</button></li>
       <li><button onClick="rotateHeadRelativeCounterclockwise()">Rotate head counterclockwise relative</button></li>
       <li><button onClick="rotateHeadDown()">Look down</button></li>
-        <li><button onClick="moveLiftToTop()">Move lift to top</button></li>
-        <li><button onClick="moveLiftToTableTop()">Move lift to tabletop</button></li>
-        <li><button onClick="moveLiftToSlightlyAboveTableTop()">Move Lift slightly above tabletop</button></li>
-        <li><button onClick="moveLiftToSlightlyAboveTableTopWhilePitchedForHolderPickup()">Move Lift to Slightly above tabletop while pitched for holder pickup</button></li>
-        <li><button onClick="moveLiftToSlightlyAboveTableTopWhilePitchedFullyDownwardsOrWhenInOtherCircumstancesThatWouldGenerallyWantTheArmNotAsLow()">Move slightly down y'know</button></li>
-        <li><button onClick="moveBaseForwardOneTile()">Move base forward one tile</li>
-          <li><button onClick="moveBaseForwardTiny()">Move base forward a tiny bit</button></li>
-          <li><button onClick="moveBaseBackwardOneTile()">Move base backward one tile</li>
-            <li><button onClick="moveBaseBackwardMisaligned()">Move base backward a tiny misaligned bit</button></li>
-            <li><button onClick="moveArmToHolder()">Move Arm To Holder</button></li>
-            <li><button onclick="switchModePosition()">Switch to Position Mode</button></li>
-            <li><button onClick="switchModeNavigation()">Switch to navigation mode</button></li>
-            <li><button onClick="logPositions()"> Output positions to console</button></li>
-            <li><button onClick="logArucoMarkers()">Output aruco markers to console</button></li>
-            <li><button onClick="moveLiftDownRelative()">Move lift down relative</button></li>
-            <li><button onClick="moveLiftUpRelative()">Move lift up relative</button></li>
-            <li> <button onClick="moveArmForwardOneTile()"> Move Arm Forward One Tile</button></li>
-            <li> <button onClick="moveArmBackwardOneTile()">Move Arm Backward One Tile</button></li>
-            <li> <button onClick="savePosition('test')">Save position</button></li>
-            <li> <button onClick="loadAndMoveToPosition('test')">Load and move to saved position </button></li>
+      <li><button onClick="moveLiftToTop()">Move lift to top</button></li>
+      <li><button onClick="moveLiftToTableTop()">Move lift to tabletop</button></li>
+      <li><button onClick="moveLiftToSlightlyAboveTableTop()">Move Lift slightly above tabletop</button></li>
+      <li><button onClick="moveLiftToSlightlyAboveTableTopWhilePitchedForHolderPickup()">Move Lift to Slightly above tabletop while pitched for holder pickup</button></li>
+      <li><button onClick="moveLiftToSlightlyAboveTableTopWhilePitchedFullyDownwardsOrWhenInOtherCircumstancesThatWouldGenerallyWantTheArmNotAsLow()">Move slightly down y'know</button></li>
+      <li><button onClick="moveBaseForwardOneTile()">Move base forward one tile</li>
+      <li><button onClick="moveBaseForwardTiny()">Move base forward a tiny bit</button></li>
+      <li><button onClick="moveBaseBackwardOneTile()">Move base backward one tile</li>
+      <li><button onClick="moveBaseBackwardMisaligned()">Move base backward a tiny misaligned bit</button></li>
+      <li><button onClick="moveArmToHolder()">Move Arm To Holder</button></li>
+      <li><button onclick="switchModePosition()">Switch to Position Mode</button></li>
+      <li><button onClick="switchModeNavigation()">Switch to navigation mode</button></li>
+      <li><button onClick="logPositions()"> Output positions to console</button></li>
+      <li><button onClick="logArucoMarkers()">Output aruco markers to console</button></li>
+      <li><button onClick="moveLiftDownRelative()">Move lift down relative</button></li>
+      <li><button onClick="moveLiftUpRelative()">Move lift up relative</button></li>
+      <li><button onClick="moveArmForwardOneTile()"> Move Arm Forward One Tile</button></li>
+      <li><button onClick="moveArmBackwardOneTile()">Move Arm Backward One Tile</button></li>
     </ul>
-    
   </div>
-  
-  <button style="height:200px;width:200px"> Play Word</button>
-
+  <div id="arm_buttons">
+    <p>Arm Buttons:</p>
+    <ul>
+      <li> <button onClick="moveArmNegative1()">Move Arm -1</button></li>
+      <li> <button onClick="moveArm0()">Move Arm 0</button></li>
+      <li> <button onClick="moveArm1()">Move Arm 1</button></li>
+      <li> <button onClick="moveArm1point5()">Move Arm 1.5</button></li>
+      <li> <button onClick="moveArm2()">Move Arm 2</button></li>
+      <li> <button onClick="moveArm2point5()">Move Arm 2.5</button></li>
+      <li> <button onClick="moveArm3()">Move Arm 3</button></li>
+      <li> <button onClick="moveArm4()">Move Arm 4</button></li>
+      <li> <button onClick="moveArm5()">Move Arm 5</button></li>
+      <li> <button onClick="moveArm6()">Move Arm 6</button></li>
+      <li> <button onClick="moveArm7()">Move Arm 7</button></li>
+      <li> <button onClick="moveArm8()">Move Arm 8</button></li>
+      <li> <button onClick="moveArm9()">Move Arm 9</button></li>
+      <li> <button onClick="moveArm10()">Move Arm 10</button></li>
+      <li> <button onClick="moveArm11()">Move Arm 11</button></li>
+      <li> <button onClick="moveArm12()">Move Arm 12</button></li>
+      <li> <button onClick="moveArm13()">Move Arm 13</button></li>
+      <li> <button onClick="moveArm14()">Move Arm 14</button></li>
+      <li> <button onClick="moveArm15()">Move Arm 15</button></li>
+    </ul>
+  </div>
 </body>
 </html>
