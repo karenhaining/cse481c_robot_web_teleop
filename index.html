@@ -15,6 +15,7 @@
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hello-vinitha/roslibjs@ros2actionclient/build/roslib.min.js"></script>
 <script type="text/javascript" type="text/javascript">
   // Connection to rocky
+
   let ros = new ROSLIB.Ros({
     url: 'ws://rocky.hcrlab.cs.washington.edu:9090'
   });
@@ -28,6 +29,7 @@
   let arucoMarkerArray;
 
   let poses = {};
+  let offsets_from_center = {};
 
   const JOINTNAMES = ["wrist_extension", "joint_lift", "joint_head_pan", "joint_head_tilt",
                      "joint_wrist_yaw", "joint_wrist_pitch", "joint_wrist_roll", "gripper_aperture"]
@@ -36,6 +38,10 @@
   const TABLETOP = 0.777;
   const COLUMNLENGTH = 0.023;
   const GRIPPER_HOLDING = 0.033;
+  const OFFSET_FOR_BOARD_CENTERING = 1; // TODO: Measure and change this value
+  const ROTATION_OFFSET = 0;//0.075;
+  const PARK_DISTANCE = 0.6;
+
   // Create subscription to the camera video topic
   const subscribeToCameraVideo = () => {
     let cameraImage = document.getElementById("cameraImage");
@@ -146,8 +152,10 @@
   // Execute a FollowJointTrajectory action for given joints
   // See valid joints here: https://github.com/hello-robot/stretch_web_teleop/blob/master/src/shared/util.tsx#L4-L20
   // and joint limits here: https://github.com/hello-robot/stretch_web_teleop/blob/master/src/shared/util.tsx#L304
-  const executeFollowJointTrajectory = (jointNames, jointPositions) => {
-    let goal = new ROSLIB.ActionGoal({
+  const executeFollowJointTrajectory = (jointNames, jointPositions, jointVelocities) => {
+    let goal;
+    if (jointVelocities == undefined) {
+      goal = new ROSLIB.ActionGoal({
       trajectory: {
         header: { stamp: { secs: 0, nsecs: 0 } },
         joint_names: jointNames,
@@ -159,6 +167,22 @@
         ],
       },
     });
+    }
+    else {
+      goal = new ROSLIB.ActionGoal({
+      trajectory: {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: jointNames,
+        points: [
+          {
+            positions: jointPositions,
+            velocities: jointVelocities,
+            time_from_start: { secs: 1, nsecs: 0 },
+          },
+        ],
+      },
+    });
+    }
     trajectoryClient.createClient(goal);
   };
 
@@ -396,46 +420,12 @@
     executeFollowJointTrajectory(['joint_wrist_roll'], [0])
   };
 
+  const yawww = () => {
+    executeFollowJointTrajectory(['joint_wrist_yaw'], [0])
+  };
+
   const levelPitch = () => {
     executeFollowJointTrajectory(['joint_wrist_pitch'], [0])
-  };
-
-  const pitchFortyFive = () => {
-    executeFollowJointTrajectory(['joint_wrist_pitch'], [-0.58])
-  };
-
-  const pitchForDropping = () => {
-    executeFollowJointTrajectory(['joint_wrist_pitch'], [-0.75])
-  };
-
-  const pitchDownForDropFromHolder = () => {
-    executeFollowJointTrajectory(['joint_wrist_pitch'], [-1.3]);
-  }
-
-  const moveArmToHolder = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [ROWONE-10.8 *ROWLENGTH]);
-  }
-
-  // Move the lift using FollowJointTrajectory
-  const moveLiftToTop = () => {
-    executeFollowJointTrajectory(['joint_lift'], [1.1]);
-  };
-
-  // Move the lift using FollowJointTrajectory
-  const moveLiftToTableTop = () => {
-    executeFollowJointTrajectory(['joint_lift'], [TABLETOP]);
-  };
-
-  const moveLiftToSlightlyAboveTableTop = () => {
-    executeFollowJointTrajectory(['joint_lift'], [TABLETOP + 0.02]);
-  };
-
-  const moveLiftToSlightlyAboveTableTopWhilePitchedForHolderPickup = () => {
-    executeFollowJointTrajectory(['joint_lift'], [TABLETOP + 0.108]);
-  };
-
-  const moveLiftToSlightlyAboveTableTopWhilePitchedFullyDownwardsOrWhenInOtherCircumstancesThatWouldGenerallyWantTheArmNotAsLow= () => {
-    executeFollowJointTrajectory(['joint_lift'], [TABLETOP + 0.13]);
   };
 
   const moveLiftDownRelative = () => {
@@ -484,14 +474,6 @@
     executeFollowJointTrajectory(['translate_mobile_base'], [-0.025]);
   };
 
-  const switchModeNavigation = () => {
-    switchToNavigation();
-  };
-
-  const switchModePosition = () => {
-    switchToPosition();
-  };
-
   const logPositions = () => {
     console.log(jointState);
   };
@@ -515,8 +497,8 @@
     executeFollowJointTrajectory(['translate_mobile_base'], [-0.1]);
   };
 
-  const rotateHeadClockwiseNinety = () => {
-    executeFollowJointTrajectory(['joint_head_pan'], [-1.45]);
+  const rotateHeadClockwiseTest = () => {
+    executeFollowJointTrajectory(['joint_head_pan'], [-Math.PI / 2])
   };
   const rotateHeadDown = () => {
     executeFollowJointTrajectory(['joint_head_tilt'], [-0.55]);
@@ -527,7 +509,153 @@
     executeFollowJointTrajectory(['joint_head_pan'], [currPos + 0.1])
   }
 
+  const rotateHeadRelativeClockwise = () => {
+    let currPos = jointState['position'][6]
+    executeFollowJointTrajectory(['joint_head_pan'], [currPos - 0.1])
+  }
+
+  const alignToArucoMarker = (marker_id) => {
+    let RoTaTioNGoaL; // In Radians
+    if (arucoMarkerArray == undefined) {
+      console.log('No aruco markers');
+      return
+    }
+    let marker_index;
+    for (let i = 0; i < arucoMarkerArray['markers'].length; i += 1) {
+      if (arucoMarkerArray['markers'][i]['id'] == marker_id) {
+        console.log("Found marker at index " + i);
+        marker_index = i;
+        break;
+      }
+    }
+    if (marker_index == undefined) {
+      console.log('Could not find aruco marker with id ' + marker_id);
+      return;
+    }
+
+    let quaternion = arucoMarkerArray['markers'][marker_index]['pose']['orientation'];
+    console.log("Quaternion is ")
+    console.log(quaternion)
+
+    head_angle = jointState['position'][6]; // Assume this is radians
+
+    let yaw = Math.atan2(2 * (quaternion['w'] * quaternion['z'] + quaternion['x'] * quaternion['y']), 1 - 2 * (quaternion['y']*quaternion['y'] + quaternion['z']*quaternion['z']))
+    //yaw = yaw + Math.PI / 2;
+    if (yaw > Math.PI * 2) {
+      console.log("Big pie");
+      yaw = yaw - 2 * Math.PI
+    }
+    RoTaTioNGoaL = head_angle - yaw;
+    RoTaTioNGoaL = RoTaTioNGoaL - ROTATION_OFFSET
+    //RoTaTioNGoaL = head_angle - yaw + (Math.PI/2);
+    console.log('yaw is ' + yaw);
+    console.log('Rotation Goal is' + RoTaTioNGoaL);
+    executeFollowJointTrajectory(['rotate_mobile_base', 'joint_head_pan'], [RoTaTioNGoaL, -Math.PI / 2]);
+    //executeFollowJointTrajectory(['joint_head_pan'], [-Math.PI / 2])
+  }
+
+  const parallelPark = (marker_id) => {
+    let currPos = jointState['position'];
+    if (arucoMarkerArray == undefined) {
+      console.log('No aruco markers');
+      return
+    }
+    let marker_index;
+    for (let i = 0; i < arucoMarkerArray['markers'].length; i += 1) {
+      if (arucoMarkerArray['markers'][i]['id'] == marker_id) {
+        console.log("Found marker at index " + i);
+        marker_index = i;
+        break;
+      }
+    }
+    if (marker_index == undefined) {
+      console.log('Could not find aruco marker with id ' + marker_id);
+      return;
+    }
+
+    let markerPosition = arucoMarkerArray['markers'][marker_index]['pose']['position'];
+
+    let driveDistance = markerPosition['z'] - PARK_DISTANCE;
+    
+    executeFollowJointTrajectory(['rotate_mobile_base'], [-Math.PI/2], [0.15]);
+
+    sleep(8000);
+
+    executeFollowJointTrajectory(['translate_mobile_base'], [driveDistance]);
+
+    sleep(5000);
+
+    executeFollowJointTrajectory(['rotate_mobile_base'], [Math.PI/2], [0.15]);
+  }
+
+
+  const driveToCenterOfBoard = (marker_id) => {
+    let currPos = jointState['position'];
+
+    if (arucoMarkerArray == undefined) {
+      console.log('No aruco markers');
+      return
+    }
+    let marker_index;
+    for (let i = 0; i < arucoMarkerArray['markers'].length; i += 1) {
+      if (arucoMarkerArray['markers'][i]['id'] == marker_id) {
+        console.log("Found marker at index " + i);
+        marker_index = i;
+        break;
+      }
+    }
+    if (marker_index == undefined) {
+      console.log('Could not find aruco marker with id ' + marker_id);
+      return;
+    }
+
+    let markerPosition = arucoMarkerArray['markers'][marker_index]['pose']['position'];
+
+    let horizontalOffset = markerPosition['y'];
+    //horizontalOffset = -horizontalOffset
+    executeFollowJointTrajectory(['translate_mobile_base',], [horizontalOffset]);
+  }
+
+  const reachToFurthestRow = (marker_id) => {
+    let currPos = jointState['position'];
+
+    if (arucoMarkerArray == undefined) {
+      console.log('No aruco markers');
+      return
+    }
+    let marker_index;
+    for (let i = 0; i < arucoMarkerArray['markers'].length; i += 1) {
+      if (arucoMarkerArray['markers'][i]['id'] == marker_id) {
+        console.log("Found marker at index " + i);
+        marker_index = i;
+        break;
+      }
+    }
+    if (marker_index == undefined) {
+      console.log('Could not find aruco marker with id ' + marker_id);
+      return;
+    }
+
+    let markerPosition = arucoMarkerArray['markers'][marker_index]['pose']['position'];
+
+    let extend_target = markerPosition['z'];
+    //horizontalOffset = -horizontalOffset
+    executeFollowJointTrajectory(['wrist_extension',], [extend_target]);
+  }
   
+
+  const alignAndParallelPark = (marker_id) => {
+    for (let l = 0; l < 5; l+=1) {
+    alignToArucoMarker(marker_id);
+    sleep(2000)
+    }
+
+    sleep(8000);
+    parallelPark(marker_id);
+
+    sleep(10000);
+    driveToCenterOfBoard(marker_id);
+  }
 
   // Called when the rosbridge websocket connection is successful
   ros.on('connection', function() {
@@ -585,33 +713,30 @@
       <li><button onClick="rotateCounterclockwise()">Rotate gripper counterclockwise</button></li>
       <li><button onClick="levelGrippper()">Level gripper</button></li>
       <li><button onClick="levelPitch()">Flatten Pitch</button></li>
-      <li><button onClick="pitchFortyFive()">Pitch down for holder pickup</button></li>
-      <li><button onClick="pitchForDropping()">Pitch down for extra dropping</button></li>
-      <li><button onClick="pitchDownForDropFromHolder()">Pitch down for drop from holder</button></li>
       <li><button onClick="pickupTile()">Pickup Tile</button></li>
       <li><button onClick="pickupTileFromHolder()">Pickup Tile From Holder</button></li>
       <li><button onClick="dropTile()"> Drop tile</button></li>
-      <li><button onClick="rotateHeadClockwiseNinety()">Rotate head clockwise</button></li>
+      <li><button onClick="rotateHeadClockwiseTest()">Rotate head clockwise Test</button></li>
       <li><button onClick="rotateHeadRelativeCounterclockwise()">Rotate head counterclockwise relative</button></li>
+      <li><button onClick="rotateHeadRelativeClockwise()">Rotate head clockwise relative</button></li>
+
       <li><button onClick="rotateHeadDown()">Look down</button></li>
-      <li><button onClick="moveLiftToTop()">Move lift to top</button></li>
-      <li><button onClick="moveLiftToTableTop()">Move lift to tabletop</button></li>
-      <li><button onClick="moveLiftToSlightlyAboveTableTop()">Move Lift slightly above tabletop</button></li>
-      <li><button onClick="moveLiftToSlightlyAboveTableTopWhilePitchedForHolderPickup()">Move Lift to Slightly above tabletop while pitched for holder pickup</button></li>
-      <li><button onClick="moveLiftToSlightlyAboveTableTopWhilePitchedFullyDownwardsOrWhenInOtherCircumstancesThatWouldGenerallyWantTheArmNotAsLow()">Move slightly down y'know</button></li>
       <li><button onClick="moveBaseForwardOneTile()">Move base forward one tile</li>
       <li><button onClick="moveBaseForwardTiny()">Move base forward a tiny bit</button></li>
       <li><button onClick="moveBaseBackwardOneTile()">Move base backward one tile</li>
       <li><button onClick="moveBaseBackwardMisaligned()">Move base backward a tiny misaligned bit</button></li>
-      <li><button onClick="moveArmToHolder()">Move Arm To Holder</button></li>
-      <li><button onclick="switchModePosition()">Switch to Position Mode</button></li>
-      <li><button onClick="switchModeNavigation()">Switch to navigation mode</button></li>
       <li><button onClick="logPositions()"> Output positions to console</button></li>
       <li><button onClick="logArucoMarkers()">Output aruco markers to console</button></li>
       <li><button onClick="moveLiftDownRelative()">Move lift down relative</button></li>
       <li><button onClick="moveLiftUpRelative()">Move lift up relative</button></li>
       <li><button onClick="moveArmForwardOneTile()"> Move Arm Forward One Tile</button></li>
       <li><button onClick="moveArmBackwardOneTile()">Move Arm Backward One Tile</button></li>
+      <li><button onClick="alignToArucoMarker(131)">Align to Aruco</button></li>
+      <li><button onClick="driveToCenterOfBoard(131)">Drive to center of board</button></li>
+      <li><button onClick="reachToFurthestRow(131)">Reach to furthest row</button></li>
+      <li><button onClick="parallelPark(131)">parallelPark</button></li>
+      <li><button onClick="alignAndParallelPark(131)">Align to aruco, parallel park, and center</button></li>
+      <li><button onClick="yawww()">Yawww</button></li>
     </ul>
   </div>
 </body>
