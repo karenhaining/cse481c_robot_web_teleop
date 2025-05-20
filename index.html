@@ -8,7 +8,7 @@
   #camera { display: none; }
   #buttons { display: none; position: relative; left: 10px; top:-2000; }
   img#cameraImage { transform: rotate(90deg); position: relative; left: -250px; top: 300px;}
-  #control_buttons{position: relative; left: 900px; top: -1040px;}
+  #control_buttons{position: relative; left: 900px; top: -400px;}
   #arm_buttons{position: relative; left: 1400px; top: -2440px;}
 </style>
 
@@ -21,6 +21,21 @@
   });
 
   // Holding place for the FollowJointTrajectory client
+  /* 
+0: "wrist_extension"
+1: "joint_lift"
+2: "joint_arm_l3"
+3: "joint_arm_l2"
+4: "joint_arm_l1"
+5: "joint_arm_l0"
+6: "joint_head_pan"
+7: "joint_head_tilt"
+8: "joint_wrist_yaw"
+9: "joint_wrist_pitch"
+10: "joint_wrist_roll"
+11: "joint_gripper_finger_left"
+12: "joint_gripper_finger_right" 
+  */
   let trajectoryClient;
   let poseModeClient;
   let navigationModeClient;
@@ -29,18 +44,22 @@
   let arucoMarkerArray;
 
   let poses = {};
-  let offsets_from_center = {};
+  let offsets_from_center = 0;
+  let first_row = 0;
+  let accumulated_rotation = 0;
+  let tabletop_offset = 0;
 
   const JOINTNAMES = ["wrist_extension", "joint_lift", "joint_head_pan", "joint_head_tilt",
                      "joint_wrist_yaw", "joint_wrist_pitch", "joint_wrist_roll", "gripper_aperture"]
-  const ROWLENGTH = 0.0244;
+  const ROWLENGTH = 0.0195;
   const ROWONE = 0.427;
   const TABLETOP = 0.777;
   const COLUMNLENGTH = 0.023;
   const GRIPPER_HOLDING = 0.033;
   const OFFSET_FOR_BOARD_CENTERING = 1; // TODO: Measure and change this value
   const ROTATION_OFFSET = 0;//0.075;
-  const PARK_DISTANCE = 0.6;
+  const PARK_DISTANCE = 0.90;
+  const EPSILON = 0.001;
 
   // Create subscription to the camera video topic
   const subscribeToCameraVideo = () => {
@@ -400,12 +419,17 @@
 
   // Open the gripper using FollowJointTrajectory
   const openGripper = () => {
-    executeFollowJointTrajectory(['gripper_aperture'], [0.08])
+    executeFollowJointTrajectory(['gripper_aperture'], [0.071])
   };
+
 
   // Close the gripper using FollowJointTrajectory
   const closeGripper = () => {
-    executeFollowJointTrajectory(['gripper_aperture'], [0.02])
+    executeFollowJointTrajectory(['gripper_aperture'], [0.05])
+  };
+
+  const openGripperSlightly = () => {
+    executeFollowJointTrajectory(['gripper_aperture'], [0.06])
   };
 
   const rotateCounterclockwise = () => {
@@ -424,6 +448,10 @@
     executeFollowJointTrajectory(['joint_wrist_yaw'], [0])
   };
 
+  const yawwwRIGHT = () => {
+    executeFollowJointTrajectory(['joint_wrist_yaw'], [Math.PI/2])
+  };
+
   const levelPitch = () => {
     executeFollowJointTrajectory(['joint_wrist_pitch'], [0])
   };
@@ -431,6 +459,11 @@
   const moveLiftDownRelative = () => {
     let currPos = jointState['position'][1];
     executeFollowJointTrajectory(['joint_lift'], [currPos - 0.05]);
+  };
+
+  const moveLiftDownRelativeTiny = () => {
+    let currPos = jointState['position'][1];
+    executeFollowJointTrajectory(['joint_lift'], [currPos - 0.005]);
   };
 
   const moveLiftUpRelative = () => {
@@ -456,21 +489,26 @@
 
   // Move base forward
   const moveBaseForward = () => {
+    offsets_from_center += 0.1
     executeFollowJointTrajectory(['translate_mobile_base'], [0.1]);
   };
 
   const moveBaseForwardOneTile = () => {
+    offsets_from_center += COLUMNLENGTH
     executeFollowJointTrajectory(['translate_mobile_base'], [COLUMNLENGTH]);
   };
   const moveBaseForwardTiny = () => {
+    offsets_from_center += COLUMNLENGTH/4
     executeFollowJointTrajectory(['translate_mobile_base'], [COLUMNLENGTH/4]);
   };
 
   const moveBaseBackwardOneTile = () => {
+    offsets_from_center -= COLUMNLENGTH
     executeFollowJointTrajectory(['translate_mobile_base'], [-1 * COLUMNLENGTH]);
   };
 
   const moveBaseBackwardMisaligned = () => {
+    offsets_from_center -= 0.025
     executeFollowJointTrajectory(['translate_mobile_base'], [-0.025]);
   };
 
@@ -487,6 +525,10 @@
     executeFollowJointTrajectory(['wrist_extension'], [currPos - ROWLENGTH]);
   };
 
+  const moveArmAllTheWayBack = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [0]);
+  };
+
   const moveArmForwardOneTile = () => {
     let currPos = jointState['position'][0]
     executeFollowJointTrajectory(['wrist_extension'], [currPos + ROWLENGTH]);
@@ -494,7 +536,9 @@
 
   // Move base backward
   const moveBaseBackward = () => {
+    offsets_from_center -= 0.1
     executeFollowJointTrajectory(['translate_mobile_base'], [-0.1]);
+
   };
 
   const rotateHeadClockwiseTest = () => {
@@ -514,32 +558,40 @@
     executeFollowJointTrajectory(['joint_head_pan'], [currPos - 0.1])
   }
 
-  const alignToArucoMarker = (marker_id) => {
+  const alignToArucoMarker = (marker_ids) => {
     let RoTaTioNGoaL; // In Radians
     if (arucoMarkerArray == undefined) {
       console.log('No aruco markers');
       return
     }
-    let marker_index;
+    let marker_indices = [];
     for (let i = 0; i < arucoMarkerArray['markers'].length; i += 1) {
-      if (arucoMarkerArray['markers'][i]['id'] == marker_id) {
-        console.log("Found marker at index " + i);
-        marker_index = i;
-        break;
+      for (let j = 0; j < marker_ids.length; j+= 1) {
+        if (marker_ids[j] == arucoMarkerArray['markers'][i]['id']) {
+          console.log("Found marker at index " + i);
+        marker_indices.push(i);
+        }
       }
     }
-    if (marker_index == undefined) {
-      console.log('Could not find aruco marker with id ' + marker_id);
+    if (marker_indices.length == 0) {
+      console.log('Could not find any markers');
       return;
     }
-
-    let quaternion = arucoMarkerArray['markers'][marker_index]['pose']['orientation'];
-    console.log("Quaternion is ")
-    console.log(quaternion)
+    let quaternions = [];
+    for (let i = 0; i < marker_indices.length; i+= 1) {
+      quaternions.push(arucoMarkerArray['markers'][marker_indices[i]]['pose']['orientation']);
+    }
+    console.log("Quaternions are ")
+    console.log(quaternions)
 
     head_angle = jointState['position'][6]; // Assume this is radians
 
-    let yaw = Math.atan2(2 * (quaternion['w'] * quaternion['z'] + quaternion['x'] * quaternion['y']), 1 - 2 * (quaternion['y']*quaternion['y'] + quaternion['z']*quaternion['z']))
+    let yaw = 0;
+    for (let i = 0; i < quaternions.length; i += 1) {
+      let quaternion = quaternions[i];
+      yaw += Math.atan2(2 * (quaternion['w'] * quaternion['z'] + quaternion['x'] * quaternion['y']), 1 - 2 * (quaternion['y']*quaternion['y'] + quaternion['z']*quaternion['z']))
+    }
+    yaw = yaw / quaternions.length
     //yaw = yaw + Math.PI / 2;
     if (yaw > Math.PI * 2) {
       console.log("Big pie");
@@ -579,67 +631,96 @@
     
     executeFollowJointTrajectory(['rotate_mobile_base'], [-Math.PI/2], [0.15]);
 
-    sleep(8000);
+    sleep(15000);
 
     executeFollowJointTrajectory(['translate_mobile_base'], [driveDistance]);
 
-    sleep(5000);
+    sleep(8000);
 
     executeFollowJointTrajectory(['rotate_mobile_base'], [Math.PI/2], [0.15]);
   }
 
 
-  const driveToCenterOfBoard = (marker_id) => {
+  const driveToCenterOfBoard = (marker_ids_left, marker_ids_right) => {
     let currPos = jointState['position'];
 
     if (arucoMarkerArray == undefined) {
       console.log('No aruco markers');
       return
     }
-    let marker_index;
+    let marker_indices_left = [];
     for (let i = 0; i < arucoMarkerArray['markers'].length; i += 1) {
-      if (arucoMarkerArray['markers'][i]['id'] == marker_id) {
-        console.log("Found marker at index " + i);
-        marker_index = i;
-        break;
+      for (let j = 0; j < marker_ids_left.length; j+= 1) {
+        if (marker_ids_left[j] == arucoMarkerArray['markers'][i]['id']) {
+          console.log("Found marker at index " + i);
+          marker_indices_left.push(i);
+        }
       }
     }
-    if (marker_index == undefined) {
-      console.log('Could not find aruco marker with id ' + marker_id);
+
+    let marker_indices_right = [];
+    for (let i = 0; i < arucoMarkerArray['markers'].length; i += 1) {
+      for (let j = 0; j < marker_ids_right.length; j+= 1) {
+        if (marker_ids_right[j] == arucoMarkerArray['markers'][i]['id']) {
+          console.log("Found marker at index " + i);
+          marker_indices_right.push(i);
+        }
+      }
+    }
+    if (marker_indices_left.length == 0 || marker_indices_right.length == 0) {
+      console.log('Could not find any markers for one of left or right');
       return;
     }
 
-    let markerPosition = arucoMarkerArray['markers'][marker_index]['pose']['position'];
+    let markerPositionAvg_right = 0
+    for (let i = 0; i < marker_indices_right.length; i+= 1) {
 
-    let horizontalOffset = markerPosition['y'];
+      markerPositionAvg_right += arucoMarkerArray['markers'][marker_indices_right[i]]['pose']['position']['y'];
+
+    }
+
+    let markerPositionAvg_left = 0
+    for (let i = 0; i < marker_indices_left.length; i+= 1) {
+
+      markerPositionAvg_left += arucoMarkerArray['markers'][marker_indices_left[i]]['pose']['position']['y'];
+
+    }
+
+    markerPositionAvg_right = markerPositionAvg_right / marker_indices_right.length
+    markerPositionAvg_left = markerPositionAvg_left / marker_indices_left.length
+    let horizontalOffset = (markerPositionAvg_left + markerPositionAvg_right) / 2
     //horizontalOffset = -horizontalOffset
     executeFollowJointTrajectory(['translate_mobile_base',], [horizontalOffset]);
   }
 
-  const reachToFurthestRow = (marker_id) => {
+  const reachToFurthestRow = (marker_ids) => {
     let currPos = jointState['position'];
 
     if (arucoMarkerArray == undefined) {
       console.log('No aruco markers');
       return
     }
-    let marker_index;
+    let marker_indices = [];
     for (let i = 0; i < arucoMarkerArray['markers'].length; i += 1) {
-      if (arucoMarkerArray['markers'][i]['id'] == marker_id) {
-        console.log("Found marker at index " + i);
-        marker_index = i;
-        break;
+      for (let j = 0; j < marker_ids.length; j+= 1) {
+        if (marker_ids[j] == arucoMarkerArray['markers'][i]['id']) {
+          console.log("Found marker at index " + i);
+          marker_indices.push(i);
+        }
       }
     }
-    if (marker_index == undefined) {
-      console.log('Could not find aruco marker with id ' + marker_id);
+    if (marker_indices.length == 0) {
+      console.log('Could not find any markers');
       return;
     }
 
-    let markerPosition = arucoMarkerArray['markers'][marker_index]['pose']['position'];
+    let markerPositionAvg = 0;
+    for (let i = 0; i < marker_indices.length; i+= 1) {
+      markerPositionAvg += arucoMarkerArray['markers'][marker_indices[i]]['pose']['position']['z'];
+    }
 
-    let extend_target = markerPosition['z'];
-    //horizontalOffset = -horizontalOffset
+    let extend_target = markerPositionAvg / marker_indices.length;
+    extend_target = extend_target - 0.60
     executeFollowJointTrajectory(['wrist_extension',], [extend_target]);
   }
   
@@ -655,6 +736,75 @@
 
     sleep(10000);
     driveToCenterOfBoard(marker_id);
+  }
+
+
+  const RotateClockwiseTiny = () => {
+    accumulated_rotation += -0.05
+    executeFollowJointTrajectory(['rotate_mobile_base'], [-0.05])
+  }
+
+  const RotateCounterClockwiseTiny = () => {
+    accumulated_rotation += 0.05
+    executeFollowJointTrajectory(['rotate_mobile_base'], [0.05])
+  }
+
+  const moveArmForwardTiny = () => {
+    let currPos = jointState['position'][0]
+    executeFollowJointTrajectory(['wrist_extension'], [currPos + 0.01])
+  }
+
+  const moveArmBackwardTiny = () => {
+    let currPos = jointState['position'][0]
+    executeFollowJointTrajectory(['wrist_extension'], [currPos - 0.01])
+  }
+
+
+  const saveCalibration = () => {
+    first_row = jointState['position'][0];
+    offsets_from_center = 0;
+    accumulated_rotation = 0;
+    tabletop_offset = 0;
+  }
+
+  const outputCalibrations = () => {
+    console.log("First row: " + first_row);
+    console.log("Offset from center: " + offsets_from_center);
+    console.log("Accumulated rotation: " + accumulated_rotation);
+    console.log("Tabletop offset: " + tabletop_offset);
+  }
+
+  const moveGripperToTopRight = () => {
+    let drive_target = -7 * COLUMNLENGTH - offsets_from_center
+    offsets_from_center += drive_target
+    executeFollowJointTrajectory(['wrist_extension', 'translate_mobile_base'], [first_row, drive_target])
+}
+
+  const moveGripperToBottomLeft = () => {
+    let drive_target = 7* COLUMNLENGTH - offsets_from_center
+    offsets_from_center += drive_target
+    executeFollowJointTrajectory(['wrist_extension', 'translate_mobile_base'], [first_row - (14 * ROWLENGTH), drive_target])
+  }
+
+  const moveGripperToTarget = (row, column) => {
+    if (row > 15 || row < 1) {
+      return
+    }
+    if (column > 15 || column < 1) {
+      return
+    }
+
+    let wrist_target = first_row - (ROWLENGTH * (14 * (row - 1)));
+    let drive_target = (COLUMNLENGTH * (8 - column)) - offsets_from_center;
+    offsets_from_center += drive_target
+    executeFollowJointTrajectory(['wrist_extension', 'translate_mobile_base'], [wrist_target, drive_target]);
+  }
+
+  const GetGrippertargetandmoveto = () => {
+    let r = document.getElementById('row_num').value
+    let c = document.getElementById('column_num').value
+
+    moveGripperToTarget(r, c)
   }
 
   // Called when the rosbridge websocket connection is successful
@@ -705,9 +855,49 @@
   <button onClick="replayPoseSequence()">Replay selected positions in order</button>
   <div id="camera"><img id="cameraImage" /></div>
   <div id="control_buttons">
+    <p>Column:</p>
+    <select id="column_num" name="Column Number">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+      <option value="7">7</option>
+      <option value="8">8</option>
+      <option value="9">9</option>
+      <option value="10">10</option>
+      <option value="11">11</option>
+      <option value="12">12</option>
+      <option value="13">13</option>
+      <option value="14">14</option>
+      <option value="15">15</option>
+    </select>
+    <p>Row:</p>
+    <select id="row_num" name="Row Number">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+      <option value="7">7</option>
+      <option value="8">8</option>
+      <option value="9">9</option>
+      <option value="10">10</option>
+      <option value="11">11</option>
+      <option value="12">12</option>
+      <option value="13">13</option>
+      <option value="14">14</option>
+      <option value="15">15</option>
+    </select>
+    <br>
+    <br>
+    <button onClick="GetGrippertargetandmoveto()">Move to target</button>
     <p>General Teleop Buttons:</p>
     <ul>
       <li><button onClick="openGripper()">Open gripper</button></li>
+      <li><button onClick="openGripperSlightly()">Open gripper slightly</button></li>
       <li><button onClick="closeGripper()">Close gripper</button></li>
       <li><button onClick="rotateClockwise()">Rotate gripper clockwise</button></li>
       <li><button onClick="rotateCounterclockwise()">Rotate gripper counterclockwise</button></li>
@@ -719,24 +909,34 @@
       <li><button onClick="rotateHeadClockwiseTest()">Rotate head clockwise Test</button></li>
       <li><button onClick="rotateHeadRelativeCounterclockwise()">Rotate head counterclockwise relative</button></li>
       <li><button onClick="rotateHeadRelativeClockwise()">Rotate head clockwise relative</button></li>
-
       <li><button onClick="rotateHeadDown()">Look down</button></li>
+      <li><button onClick="RotateClockwiseTiny()">Rotate Base Clockwise</button></li>
+      <li><button onClick="RotateCounterClockwiseTiny()">Rotate Base counterclockwise</button></li>
       <li><button onClick="moveBaseForwardOneTile()">Move base forward one tile</li>
       <li><button onClick="moveBaseForwardTiny()">Move base forward a tiny bit</button></li>
       <li><button onClick="moveBaseBackwardOneTile()">Move base backward one tile</li>
       <li><button onClick="moveBaseBackwardMisaligned()">Move base backward a tiny misaligned bit</button></li>
       <li><button onClick="logPositions()"> Output positions to console</button></li>
       <li><button onClick="logArucoMarkers()">Output aruco markers to console</button></li>
+      <li><button onClick="outputCalibrations()">Output calibrations to console</button></li>
       <li><button onClick="moveLiftDownRelative()">Move lift down relative</button></li>
       <li><button onClick="moveLiftUpRelative()">Move lift up relative</button></li>
+      <li><button onClick="moveLiftDownRelativeTiny()">Move lift down tiny</button></li>
       <li><button onClick="moveArmForwardOneTile()"> Move Arm Forward One Tile</button></li>
       <li><button onClick="moveArmBackwardOneTile()">Move Arm Backward One Tile</button></li>
-      <li><button onClick="alignToArucoMarker(131)">Align to Aruco</button></li>
-      <li><button onClick="driveToCenterOfBoard(131)">Drive to center of board</button></li>
-      <li><button onClick="reachToFurthestRow(131)">Reach to furthest row</button></li>
-      <li><button onClick="parallelPark(131)">parallelPark</button></li>
-      <li><button onClick="alignAndParallelPark(131)">Align to aruco, parallel park, and center</button></li>
+      <li><button onClick="moveArmForwardTiny()"> Move Arm Forward Tiny</button></li>
+      <li><button onClick="moveArmBackwardTiny()">Move Arm Backward Tiny</button></li>
+      <li><button onClick="moveArmAllTheWayBack()">Move Arm all the way back</button></li>
+      <li><button onClick="alignToArucoMarker([0, 1, 2, 3])">Align to Aruco</button></li>
+      <li><button onClick="driveToCenterOfBoard([0, 2], [1, 3])">Drive to center of board</button></li>
+      <li><button onClick="reachToFurthestRow([0, 1])">Reach to furthest row</button></li>
+      <li><button onClick="parallelPark(0)">parallelPark</button></li>
       <li><button onClick="yawww()">Yawww</button></li>
+      <li><button onClick="yawwwRIGHT()">Yawww RIGHT</button></li>
+      <li><button onClick="saveCalibration()"> Save Calibration</button></li>
+      <li><button onClick="moveGripperToTopRight()">Move Gripper to Top Right square</button></li>
+      <li><button onClick="moveGripperToBottomLeft()"> Move Gripper to Bottom Left square</button></li>
+      
     </ul>
   </div>
 </body>
