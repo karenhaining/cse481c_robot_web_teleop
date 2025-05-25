@@ -17,6 +17,7 @@
   // Connection to rocky
 
   let ros = new ROSLIB.Ros({
+    //url: 'wss://hellorobotuw.live'
     url: 'ws://rocky.hcrlab.cs.washington.edu:9090'
   });
 
@@ -48,10 +49,13 @@
   let first_row = 0;
   let accumulated_rotation = 0;
   let tabletop_offset = 0;
+  let holder_offsets = 0;
+  let holder_arm = 0;
 
   const JOINTNAMES = ["wrist_extension", "joint_lift", "joint_head_pan", "joint_head_tilt",
                      "joint_wrist_yaw", "joint_wrist_pitch", "joint_wrist_roll", "gripper_aperture"]
   const ROWLENGTH = 0.0195;
+  const HOLDERWIDTH = 0.062
   const ROWONE = 0.427;
   const TABLETOP = 0.777;
   const COLUMNLENGTH = 0.023;
@@ -425,11 +429,15 @@
 
   // Close the gripper using FollowJointTrajectory
   const closeGripper = () => {
-    executeFollowJointTrajectory(['gripper_aperture'], [0.05])
+    executeFollowJointTrajectory(['gripper_aperture'], [0.021])
+  };
+
+  const GripperStuff = () => {
+    executeFollowJointTrajectory(['gripper_aperture'], [0.075])
   };
 
   const openGripperSlightly = () => {
-    executeFollowJointTrajectory(['gripper_aperture'], [0.06])
+    executeFollowJointTrajectory(['gripper_aperture'], [0.046])
   };
 
   const rotateCounterclockwise = () => {
@@ -490,25 +498,35 @@
   // Move base forward
   const moveBaseForward = () => {
     offsets_from_center += 0.1
+        holder_offsets += 0.1
+
     executeFollowJointTrajectory(['translate_mobile_base'], [0.1]);
   };
 
   const moveBaseForwardOneTile = () => {
     offsets_from_center += COLUMNLENGTH
+        holder_offsets += COLUMNLENGTH
+
     executeFollowJointTrajectory(['translate_mobile_base'], [COLUMNLENGTH]);
   };
   const moveBaseForwardTiny = () => {
     offsets_from_center += COLUMNLENGTH/4
+        holder_offsets += COLUMNLENGTH/4
+
     executeFollowJointTrajectory(['translate_mobile_base'], [COLUMNLENGTH/4]);
   };
 
   const moveBaseBackwardOneTile = () => {
     offsets_from_center -= COLUMNLENGTH
+        holder_offsets -= COLUMNLENGTH
+
     executeFollowJointTrajectory(['translate_mobile_base'], [-1 * COLUMNLENGTH]);
   };
 
   const moveBaseBackwardMisaligned = () => {
     offsets_from_center -= 0.025
+        holder_offsets -= 0.025
+
     executeFollowJointTrajectory(['translate_mobile_base'], [-0.025]);
   };
 
@@ -767,6 +785,11 @@
     tabletop_offset = 0;
   }
 
+  const saveHolderCalibration = () => {
+    holder_arm = jointState['position'][0];
+    holder_offsets = 0;
+  }
+
   const outputCalibrations = () => {
     console.log("First row: " + first_row);
     console.log("Offset from center: " + offsets_from_center);
@@ -777,26 +800,33 @@
   const moveGripperToTopRight = () => {
     let drive_target = -7 * COLUMNLENGTH - offsets_from_center
     offsets_from_center += drive_target
+        holder_offsets += drive_target
+
     executeFollowJointTrajectory(['wrist_extension', 'translate_mobile_base'], [first_row, drive_target])
 }
 
   const moveGripperToBottomLeft = () => {
     let drive_target = 7* COLUMNLENGTH - offsets_from_center
-    offsets_from_center += drive_target
+    offsets_from_center += drive_target;
+        holder_offsets += drive_target;
+
     executeFollowJointTrajectory(['wrist_extension', 'translate_mobile_base'], [first_row - (14 * ROWLENGTH), drive_target])
   }
 
   const moveGripperToTarget = (row, column) => {
     if (row > 15 || row < 1) {
-      return
+      console.log("Bad row");
+      return;
     }
     if (column > 15 || column < 1) {
-      return
+      console.log("bad column");
+      return;
     }
 
     let wrist_target = first_row - (ROWLENGTH * (14 * (row - 1)));
     let drive_target = (COLUMNLENGTH * (8 - column)) - offsets_from_center;
     offsets_from_center += drive_target
+    holder_offsets += drive_target
     executeFollowJointTrajectory(['wrist_extension', 'translate_mobile_base'], [wrist_target, drive_target]);
   }
 
@@ -805,6 +835,28 @@
     let c = document.getElementById('column_num').value
 
     moveGripperToTarget(r, c)
+  }
+
+  const MoveToHolderTarget = (target) => {
+    let drive_target = (HOLDERWIDTH * (1 - target)) - holder_offsets;
+        offsets_from_center += drive_target
+    holder_offsets += drive_target
+    executeFollowJointTrajectory(['wrist_extension', 'translate_mobile_base'], [holder_arm, drive_target]);
+
+
+  }
+
+  const GetHolderTargetAndMove = () => {
+    let t = document.getElementById('holder_pos').value;
+    MoveToHolderTarget(t);
+  }
+
+  const rotateBaseClockwiseNinety = () => {
+    executeFollowJointTrajectory(['rotate_mobile_base'], [Math.PI/2])
+  }
+
+  const rotateBaseCounterclockwiseNinety = () => {
+    executeFollowJointTrajectory(['rotate_mobile_base'], [-Math.PI/2])
   }
 
   // Called when the rosbridge websocket connection is successful
@@ -892,10 +944,25 @@
       <option value="15">15</option>
     </select>
     <br>
+        <button onClick="GetGrippertargetandmoveto()">Move to target</button>
+
+    <p>Holder:</p>
+    <select id="holder_pos" name="Holder Position">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+      <option value="7">7</option>
+    </select>
     <br>
-    <button onClick="GetGrippertargetandmoveto()">Move to target</button>
+        <button onClick="GetHolderTargetAndMove()">Move to holder target</button>
+
+    <br>
     <p>General Teleop Buttons:</p>
     <ul>
+      <li><button onClick="GripperStuff()">Gripper Stuff</button></li>
       <li><button onClick="openGripper()">Open gripper</button></li>
       <li><button onClick="openGripperSlightly()">Open gripper slightly</button></li>
       <li><button onClick="closeGripper()">Close gripper</button></li>
@@ -910,6 +977,8 @@
       <li><button onClick="rotateHeadRelativeCounterclockwise()">Rotate head counterclockwise relative</button></li>
       <li><button onClick="rotateHeadRelativeClockwise()">Rotate head clockwise relative</button></li>
       <li><button onClick="rotateHeadDown()">Look down</button></li>
+      <li><button onClick="rotateBaseClockwiseNinety()">Rotate Base Clockwise Ninety Degrees</button></li>
+      <li><button onClick="rotateBaseCounterclockwiseNinety()">Rotate Base Counterclockwise Ninety Degrees</button></li>
       <li><button onClick="RotateClockwiseTiny()">Rotate Base Clockwise</button></li>
       <li><button onClick="RotateCounterClockwiseTiny()">Rotate Base counterclockwise</button></li>
       <li><button onClick="moveBaseForwardOneTile()">Move base forward one tile</li>
@@ -933,7 +1002,8 @@
       <li><button onClick="parallelPark(0)">parallelPark</button></li>
       <li><button onClick="yawww()">Yawww</button></li>
       <li><button onClick="yawwwRIGHT()">Yawww RIGHT</button></li>
-      <li><button onClick="saveCalibration()"> Save Calibration</button></li>
+      <li><button onClick="saveCalibration()"> Save Calibration For Board Center</button></li>
+      <li><button onClick="saveHolderCalibration()"> Save Calibration for leftmost holder tile</button></li>
       <li><button onClick="moveGripperToTopRight()">Move Gripper to Top Right square</button></li>
       <li><button onClick="moveGripperToBottomLeft()"> Move Gripper to Bottom Left square</button></li>
       
