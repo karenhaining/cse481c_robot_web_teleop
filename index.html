@@ -54,12 +54,15 @@
 
   const JOINTNAMES = ["wrist_extension", "joint_lift", "joint_head_pan", "joint_head_tilt",
                      "joint_wrist_yaw", "joint_wrist_pitch", "joint_wrist_roll", "gripper_aperture"]
-  const ROWLENGTH = 0.0195;
-  const HOLDERWIDTH = 0.062
+  const ROWLENGTH = 0.0190;
+  const HOLDERWIDTH = 0.057
   const ROWONE = 0.427;
-  const TABLETOP = 0.777;
+  const TABLETOP = 0.76313;
+  const NEUTRAL_ELEV = 0.81;
+  const HOLDERTOP = 0.75158;
   const COLUMNLENGTH = 0.023;
-  const GRIPPER_HOLDING = 0.033;
+  const GRIPPER_OPEN = 0.060;
+  const GRIPPER_HOLDING = 0.038;
   const OFFSET_FOR_BOARD_CENTERING = 1; // TODO: Measure and change this value
   const ROTATION_OFFSET = 0;//0.075;
   const PARK_DISTANCE = 0.90;
@@ -350,17 +353,22 @@
         joint_names: ['gripper_aperture', 'joint_lift'],
         points: [
         {
-            positions: [GRIPPER_HOLDING + 0.01, TABLETOP-0.02],
+            positions: [GRIPPER_OPEN, NEUTRAL_ELEV],
             time_from_start: { secs: 1, nsecs: 0 },
           },
           {
-            positions: [GRIPPER_HOLDING, TABLETOP-0.02],
+            positions: [GRIPPER_OPEN, HOLDERTOP],
             time_from_start: { secs: 4, nsecs: 0 },
           },
           {
-            positions: [GRIPPER_HOLDING, TABLETOP+0.15
+            positions: [GRIPPER_HOLDING,HOLDERTOP
             ],
             time_from_start: { secs: 7, nsecs: 0 },
+          },
+          {
+            positions: [GRIPPER_HOLDING,NEUTRAL_ELEV
+            ],
+            time_from_start: { secs: 10, nsecs: 0 },
           },
         ],
       },
@@ -400,19 +408,19 @@
         joint_names: ['gripper_aperture', 'joint_lift'],
         points: [
         {
-            positions: [GRIPPER_HOLDING , TABLETOP-0.02],
+            positions: [GRIPPER_HOLDING , NEUTRAL_ELEV],
             time_from_start: { secs: 1, nsecs: 0 },
           },
           {
-            positions: [GRIPPER_HOLDING, TABLETOP-0.02],
+            positions: [GRIPPER_HOLDING, TABLETOP],
             time_from_start: { secs: 4, nsecs: 0 },
           },
           {
-            positions: [GRIPPER_HOLDING, TABLETOP-0.02],
+            positions: [GRIPPER_OPEN, TABLETOP],
             time_from_start: { secs: 7, nsecs: 0 },
           },
           {
-            positions: [GRIPPER_HOLDING + 0.01, TABLETOP + 0.15],
+            positions: [GRIPPER_OPEN, NEUTRAL_ELEV],
             time_from_start: { secs: 9, nsecs: 0 },
           },
         ],
@@ -429,7 +437,7 @@
 
   // Close the gripper using FollowJointTrajectory
   const closeGripper = () => {
-    executeFollowJointTrajectory(['gripper_aperture'], [0.021])
+    executeFollowJointTrajectory(['gripper_aperture'], [0.038])
   };
 
   const GripperStuff = () => {
@@ -437,7 +445,7 @@
   };
 
   const openGripperSlightly = () => {
-    executeFollowJointTrajectory(['gripper_aperture'], [0.046])
+    executeFollowJointTrajectory(['gripper_aperture'], [0.060])
   };
 
   const rotateCounterclockwise = () => {
@@ -823,7 +831,7 @@
       return;
     }
 
-    let wrist_target = first_row - (ROWLENGTH * (14 * (row - 1)));
+    let wrist_target = first_row - (ROWLENGTH * (row - 1));
     let drive_target = (COLUMNLENGTH * (8 - column)) - offsets_from_center;
     offsets_from_center += drive_target
     holder_offsets += drive_target
