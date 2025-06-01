@@ -42,6 +42,11 @@
   let poseModeClient;
   let navigationModeClient;
   let positionClient;
+  let alignmentMathClient;
+  let boardCalibTopic;
+  let holderCalibTopic
+  let boardOffsetTopic;
+  let holderOffsetTopic;
   let jointState;
   let arucoMarkerArray;
 
@@ -132,15 +137,38 @@
     });
   };
 
-  const createRealTrajectoryClient = () => {
-    realTrajectoryClient = new ROSLIB.ActionClient({
+  const createAlignmentMathClient = () => {
+    alignmentMathClient = new ROSLIB.Service({
       ros: ros,
-      serverName: '/stretch_controller/follow_joint_trajectory',
-      actionName: 'control_msgs/action/FollowJointTrajectory'
-
+      name : '/get_calibration_data',
+      serviceType : 'std_srvs/srv/Trigger'
     })
+  }
 
-    console.log(realTrajectoryClient);
+  const createCalibrationPublishers = () => {
+    boardCalibTopic = new ROSLIB.Topic({
+      ros: ros,
+      name: "/board_calibration_data",
+      messageType: "std_msgs/msg/Float64"
+    });
+
+    holderCalibTopic = new ROSLIB.Topic({
+      ros: ros,
+      name: "/holder_calibration_data",
+      messageType: "std_msgs/msg/Float64"
+    });
+
+    boardOffsetTopic = new ROSLIB.Topic({
+      ros: ros,
+      name: "/board_offset_changes",
+      messageType: "std_msgs/msg/Float64"
+    });
+
+    holderOffsetTopic = new ROSLIB.Topic({
+      ros: ros,
+      name: "/holder_offset_changes",
+      messageType: "std_msgs/msg/Float64"
+    });
   }
 
   const createNavigationModeClient = () => {
@@ -1104,6 +1132,8 @@ const weirdTesting = () => {
     createPositionClient();
     subscribeToJointStates();
     subscribeToArucoMarkerArray();
+    createAlignmentMathClient();
+    createCalibrationPublishers();
   });
 
   // Called when the rosbridge websocket connection is failed
@@ -1119,6 +1149,42 @@ const weirdTesting = () => {
     document.getElementById('connection').style.display = "none";
     console.log('Connection to websocket server closed.');
   });
+
+  const getCalibrationData = () => {
+    let request = new ROSLIB.ServiceRequest({})
+    let calibration;
+    alignmentMathClient.callService(request, (response) => {calibration = response});
+    console.log(calibration);
+    return calibration;
+  }
+
+  const publishBoardCalibration = (value) => {
+    let msg = new ROSLIB.Message({
+      data: value
+    });
+    boardCalibTopic.publish(msg);
+  }
+
+  const publishHolderCalibration = (value) => {
+    let msg = new ROSLIB.Message({
+      data: value
+    });
+    holderCalibTopic.publish(msg);
+  }
+
+  const publishBoardOffsetDelta = (delta) => {
+    let msg = new ROSLIB.Message({
+      data: delta
+    });
+    boardOffsetTopic.publish(msg);
+  }
+
+  const publishHolderOffsetDelta = (delta) => {
+    let msg = new ROSLIB.Message({
+      data: delta
+    });
+    holderOffsetTopic.publish(msg);
+  }
 </script>
 
 <body>
