@@ -13,18 +13,13 @@ Stretch driver:
 ```
 ros2 launch stretch_core stretch_driver.launch.py
 ```
-
-Intel RealSense camera driver:
 ```
-ros2 launch stretch_core d435i_low_resolution.launch.py
+ros2 launch stretch_core d435i_high_resolution.launch.py
 ```
-
-ROSBridge WebSocket server
 ```
 ros2 launch rosbridge_server rosbridge_websocket_launch.xml
 ```
-
-Finally, open the index.html page in your browser. You should see a page that looks like this:
-![Example screenshot](screenshot.png)
-
+```
+ros2 launch stretch_core stretch_aruco.launch.py
+```
 

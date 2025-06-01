@@ -38,6 +38,7 @@
 12: "joint_gripper_finger_right" 
   */
   let trajectoryClient;
+  let realTrajectoryClient;
   let poseModeClient;
   let navigationModeClient;
   let positionClient;
@@ -52,6 +53,8 @@
   let holder_offsets = 0;
   let holder_arm = 0;
 
+  let queuedMovements = [];
+
   const JOINTNAMES = ["wrist_extension", "joint_lift", "joint_head_pan", "joint_head_tilt",
                      "joint_wrist_yaw", "joint_wrist_pitch", "joint_wrist_roll", "gripper_aperture"]
   const ROWLENGTH = 0.0190;
@@ -61,11 +64,11 @@
   const NEUTRAL_ELEV = 0.81;
   const HOLDERTOP = 0.75158;
   const COLUMNLENGTH = 0.023;
-  const GRIPPER_OPEN = 0.060;
-  const GRIPPER_HOLDING = 0.038;
+  const GRIPPER_OPEN = 0.050;
+  const GRIPPER_HOLDING = 0.019;
   const OFFSET_FOR_BOARD_CENTERING = 1; // TODO: Measure and change this value
   const ROTATION_OFFSET = 0;//0.075;
-  const PARK_DISTANCE = 0.90;
+  const PARK_DISTANCE = 1.06;
   const EPSILON = 0.001;
 
   // Create subscription to the camera video topic
@@ -93,6 +96,21 @@
     });
   };
 
+  const subscribeToActions = () => {
+    const actionTopic = new ROSLIB.Topic({
+            ros: ros,
+            name: "/stretch_controller/follow_joint_trajectory/_action/status",
+            messageType: "action_msgs/msg/GoalStatusArray",
+    });
+    console.log("subscribing to actions")
+    actionTopic.subscribe((message) => {console.log(message);
+    if (message.status_list[message.status_list.length - 1].status == 4) {
+      console.log("last completed");  
+      queuedMovementsCallback();
+    }
+    });
+  }
+
   const subscribeToArucoMarkerArray = () => {
     const ArucoMarkerArrayTopic = new ROSLIB.Topic({
             ros: ros,
@@ -113,6 +131,17 @@
       actionType: "control_msgs/action/FollowJointTrajectory",
     });
   };
+
+  const createRealTrajectoryClient = () => {
+    realTrajectoryClient = new ROSLIB.ActionClient({
+      ros: ros,
+      serverName: '/stretch_controller/follow_joint_trajectory',
+      actionName: 'control_msgs/action/FollowJointTrajectory'
+
+    })
+
+    console.log(realTrajectoryClient);
+  }
 
   const createNavigationModeClient = () => {
     navigationModeClient = new ROSLIB.Service({
@@ -437,7 +466,7 @@
 
   // Close the gripper using FollowJointTrajectory
   const closeGripper = () => {
-    executeFollowJointTrajectory(['gripper_aperture'], [0.038])
+    executeFollowJointTrajectory(['gripper_aperture'], [GRIPPER_HOLDING])
   };
 
   const GripperStuff = () => {
@@ -445,7 +474,7 @@
   };
 
   const openGripperSlightly = () => {
-    executeFollowJointTrajectory(['gripper_aperture'], [0.060])
+    executeFollowJointTrajectory(['gripper_aperture'], [GRIPPER_OPEN])
   };
 
   const rotateCounterclockwise = () => {
@@ -471,6 +500,76 @@
   const levelPitch = () => {
     executeFollowJointTrajectory(['joint_wrist_pitch'], [0])
   };
+
+  const PitchDown = () => {
+    executeFollowJointTrajectory(['joint_wrist_pitch'], [-1.5])
+  };
+
+  const queuedMovementsCallback = () => {
+    if (queuedMovements.length > 0) {
+      let nextGoal = queuedMovements.shift()
+      let goal = new ROSLIB.ActionGoal({
+        trajectory: nextGoal
+    });
+
+       trajectoryClient.createClient(goal);
+      }
+  }
+
+  const StowArm = () => {
+    let goal = new ROSLIB.ActionGoal({
+      trajectory: {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: ['wrist_extension', 'joint_lift', 'joint_wrist_pitch'],
+        points: [
+        {
+            positions: [0.05, NEUTRAL_ELEV + 0.1, 0.0],
+          },
+          
+        ],
+      },
+
+    });
+
+    queuedMovements.push(
+      {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: ['wrist_extension', 'joint_lift'],
+        points: [
+        {
+            positions: [0.05, NEUTRAL_ELEV + 0.11],
+          },
+          
+        ],
+      }
+    )
+    queuedMovements.push(
+      {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: ['joint_wrist_pitch'],
+        points: [
+        {
+            positions: [ -1.5],
+          },
+          
+        ],
+      }
+    )
+
+    queuedMovements.push(
+      {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: ['wrist_extension', 'joint_lift',],
+        points: [
+        {
+            positions: [0.05, NEUTRAL_ELEV - 0.3, ],
+          },
+          
+        ],
+      }
+    )
+    trajectoryClient.createClient(goal);
+  }
 
   const moveLiftDownRelative = () => {
     let currPos = jointState['position'][1];
@@ -503,12 +602,30 @@
     trajectoryClient.createClient(goal);
   }
 
+const weirdTesting = () => {
+  executeFollowJointTrajectory(['wrist_extension', 'joint_lift', 'joint_wrist_pitch'], [0.05, NEUTRAL_ELEV + 0.1, 0.0])
+}
+
   // Move base forward
   const moveBaseForward = () => {
     offsets_from_center += 0.1
         holder_offsets += 0.1
 
     executeFollowJointTrajectory(['translate_mobile_base'], [0.1]);
+  };
+
+ const moveBaseForwardLots = () => {
+    offsets_from_center += 0.15
+        holder_offsets += 0.15
+
+    executeFollowJointTrajectory(['translate_mobile_base'], [0.15]);
+  };
+
+  const moveBaseBackwardLots = () => {
+    offsets_from_center -= 0.15
+        holder_offsets -= 0.15
+
+    executeFollowJointTrajectory(['translate_mobile_base'], [-0.15]);
   };
 
   const moveBaseForwardOneTile = () => {
@@ -867,6 +984,111 @@
     executeFollowJointTrajectory(['rotate_mobile_base'], [-Math.PI/2])
   }
 
+  const returnToCenter = () => {
+    let old_offset = offsets_from_center
+    holder_offsets -= old_offset
+    offsets_from_center = 0
+    executeFollowJointTrajectory(['translate_mobile_base'], [-old_offset])
+    
+  }
+
+  const playWord = (commands) => {
+    let startWrist = jointState['position'][0];
+    let trajectoryPoints = []
+
+    trajectoryPoints.push({
+            positions: [GRIPPER_OPEN , NEUTRAL_ELEV, startWrist, 0.0001 ],
+            time_from_start: { secs: 1, nsecs: 0 },
+          });
+    
+    let secs = 2;
+
+    for (let i = 0; i < commands.length; i += 1) {
+      let holdtargetyeah = commands[i][0]
+      let drive_target = (HOLDERWIDTH * (1 - holdtargetyeah)) - holder_offsets;
+      if (drive_target == 0.0) {
+        drive_target = 0.0001;
+      }
+      offsets_from_center += drive_target;
+      holder_offsets += drive_target;
+      trajectoryPoints.push({
+        positions: [GRIPPER_OPEN , NEUTRAL_ELEV, holder_arm, drive_target ],
+            time_from_start: { secs: secs, nsecs: 0 },
+      })
+      secs += 2;
+
+      trajectoryPoints = trajectoryPoints.concat([
+         {
+            positions: [GRIPPER_OPEN, NEUTRAL_ELEV, holder_arm, 0.00001],
+            time_from_start: { secs: secs, nsecs: 0 },
+          },
+          {
+            positions: [GRIPPER_OPEN, HOLDERTOP, holder_arm, 0.00001],
+            time_from_start: { secs: secs + 2, nsecs: 0 },
+          },
+          {
+            positions: [GRIPPER_HOLDING, HOLDERTOP, holder_arm, 0.00001],
+            time_from_start: { secs: secs + 6, nsecs: 0 },
+          },
+          {
+            positions: [GRIPPER_HOLDING,NEUTRAL_ELEV, holder_arm, 0.00001],
+            time_from_start: { secs: secs + 10, nsecs: 0 },
+          },
+      ])
+      secs += 10;
+
+      let rowtarget = commands[i][1]
+      let columntarget = commands[i][2]
+      let wrist_target = first_row - (ROWLENGTH * (rowtarget - 1));
+      let drive_target2 = (COLUMNLENGTH * (8 - columntarget)) - offsets_from_center;
+      if (drive_target2 == 0.0) {
+        drive_target2 = 0.0001
+      }
+      offsets_from_center += drive_target2;
+      holder_offsets += drive_target2;
+
+      trajectoryPoints.push({
+        positions: [GRIPPER_HOLDING , NEUTRAL_ELEV, wrist_target, drive_target2],
+            time_from_start: { secs: secs + 2, nsecs: 0 },
+      })
+
+      secs += 2;
+
+      trajectoryPoints = trajectoryPoints.concat([
+        {
+            positions: [GRIPPER_HOLDING , NEUTRAL_ELEV, wrist_target, 0.00001],
+            time_from_start: { secs: secs + 2, nsecs: 0 },
+          },
+          {
+            positions: [GRIPPER_HOLDING, TABLETOP+0.0175, wrist_target, 0.00001],
+            time_from_start: { secs: secs + 4, nsecs: 0 },
+          },
+          {
+            positions: [GRIPPER_OPEN, TABLETOP+0.0175, wrist_target, 0.00001],
+            time_from_start: { secs: secs + 7, nsecs: 0 },
+          },
+          {
+            positions: [GRIPPER_OPEN, NEUTRAL_ELEV, wrist_target, 0.00001],
+            time_from_start: { secs: secs + 9, nsecs: 0 },
+          },
+        ])
+
+
+    }
+
+    console.log("Final trajectory points:")
+    console.log(trajectoryPoints)
+
+    let goal = new ROSLIB.ActionGoal({
+      trajectory: {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: ['gripper_aperture', 'joint_lift', 'wrist_extension', 'translate_mobile_base'],
+        points: trajectoryPoints
+      },
+    });
+    trajectoryClient.createClient(goal);
+  } 
+
   // Called when the rosbridge websocket connection is successful
   ros.on('connection', function() {
     document.getElementById('connection').innerHTML = "Connected to Stretch.";
@@ -876,6 +1098,7 @@
   
     subscribeToCameraVideo();
     createTrajectoryClient();
+    subscribeToActions();
     createPositionModeClient();
     createNavigationModeClient();
     createPositionClient();
@@ -978,6 +1201,7 @@
       <li><button onClick="rotateCounterclockwise()">Rotate gripper counterclockwise</button></li>
       <li><button onClick="levelGrippper()">Level gripper</button></li>
       <li><button onClick="levelPitch()">Flatten Pitch</button></li>
+      <li><button onClick="PitchDown()">Pitch hand down</button></li>
       <li><button onClick="pickupTile()">Pickup Tile</button></li>
       <li><button onClick="pickupTileFromHolder()">Pickup Tile From Holder</button></li>
       <li><button onClick="dropTile()"> Drop tile</button></li>
@@ -990,8 +1214,11 @@
       <li><button onClick="RotateClockwiseTiny()">Rotate Base Clockwise</button></li>
       <li><button onClick="RotateCounterClockwiseTiny()">Rotate Base counterclockwise</button></li>
       <li><button onClick="moveBaseForwardOneTile()">Move base forward one tile</li>
+        <li><button onClick="moveBaseForwardLots()">Move base forward a lot</li>
       <li><button onClick="moveBaseForwardTiny()">Move base forward a tiny bit</button></li>
       <li><button onClick="moveBaseBackwardOneTile()">Move base backward one tile</li>
+                <li><button onClick="moveBaseBackwardLots()">Move base backwards a lot</li>
+
       <li><button onClick="moveBaseBackwardMisaligned()">Move base backward a tiny misaligned bit</button></li>
       <li><button onClick="logPositions()"> Output positions to console</button></li>
       <li><button onClick="logArucoMarkers()">Output aruco markers to console</button></li>
@@ -1014,7 +1241,10 @@
       <li><button onClick="saveHolderCalibration()"> Save Calibration for leftmost holder tile</button></li>
       <li><button onClick="moveGripperToTopRight()">Move Gripper to Top Right square</button></li>
       <li><button onClick="moveGripperToBottomLeft()"> Move Gripper to Bottom Left square</button></li>
-      
+      <li><button onClick="StowArm()"> Stow Arm</button></li>
+      <li><button onClick="playWord([[1, 8, 8], [3, 8, 9], [4, 8, 10], [5, 8, 11]])">Fuck you Naama</button></li>
+      <li><button onClick="weirdTesting()"> Testing</button></li>
+      <li><button onClick="returnToCenter()">Return to center of board</button></li>
     </ul>
   </div>
 </body>
