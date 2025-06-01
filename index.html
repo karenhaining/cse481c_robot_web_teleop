@@ -69,11 +69,11 @@
   const NEUTRAL_ELEV = 0.81;
   const HOLDERTOP = 0.75158;
   const COLUMNLENGTH = 0.023;
-  const GRIPPER_OPEN = 0.050;
-  const GRIPPER_HOLDING = 0.019;
+  const GRIPPER_OPEN = 0.040;
+  const GRIPPER_HOLDING = 0.017;
   const OFFSET_FOR_BOARD_CENTERING = 1; // TODO: Measure and change this value
   const ROTATION_OFFSET = 0;//0.075;
-  const PARK_DISTANCE = 1.06;
+  const PARK_DISTANCE = 1.02;
   const EPSILON = 0.001;
 
   // Create subscription to the camera video topic
@@ -469,11 +469,11 @@
             time_from_start: { secs: 1, nsecs: 0 },
           },
           {
-            positions: [GRIPPER_HOLDING, TABLETOP],
+            positions: [GRIPPER_HOLDING, TABLETOP + 0.015],
             time_from_start: { secs: 4, nsecs: 0 },
           },
           {
-            positions: [GRIPPER_OPEN, TABLETOP],
+            positions: [GRIPPER_OPEN, TABLETOP + 0.015],
             time_from_start: { secs: 7, nsecs: 0 },
           },
           {
@@ -548,10 +548,10 @@
     let goal = new ROSLIB.ActionGoal({
       trajectory: {
         header: { stamp: { secs: 0, nsecs: 0 } },
-        joint_names: ['wrist_extension', 'joint_lift', 'joint_wrist_pitch'],
+        joint_names: ['wrist_extension', 'joint_lift'],
         points: [
         {
-            positions: [0.05, NEUTRAL_ELEV + 0.1, 0.0],
+            positions: [0.05, NEUTRAL_ELEV + 0.1,],
           },
           
         ],
@@ -599,6 +599,51 @@
     trajectoryClient.createClient(goal);
   }
 
+  const DeployArm = () => {
+    let goal = new ROSLIB.ActionGoal({
+      trajectory: {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: ['wrist_extension', 'joint_lift'],
+        points: [
+        {
+            positions: [0.05, NEUTRAL_ELEV + 0.11,]
+          },
+          
+        ],
+      },
+
+    });
+
+   
+    queuedMovements.push(
+      {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: ['joint_wrist_pitch'],
+        points: [
+        {
+            positions: [0],
+          },
+          
+        ],
+      }
+    )
+
+    queuedMovements.push(
+      {
+        header: { stamp: { secs: 0, nsecs: 0 } },
+        joint_names: ['wrist_extension', 'joint_lift',],
+        points: [
+        {
+            positions: [0.15, NEUTRAL_ELEV],
+          },
+          
+        ],
+      }
+    )
+        trajectoryClient.createClient(goal);
+
+  }
+
   const moveLiftDownRelative = () => {
     let currPos = jointState['position'][1];
     executeFollowJointTrajectory(['joint_lift'], [currPos - 0.05]);
@@ -639,12 +684,17 @@ const weirdTesting = () => {
     offsets_from_center += 0.1
         holder_offsets += 0.1
 
+    publishBoardOffsetDelta(0.1);
+    publishHolderOffsetDelta(0.1);
     executeFollowJointTrajectory(['translate_mobile_base'], [0.1]);
   };
 
  const moveBaseForwardLots = () => {
     offsets_from_center += 0.15
         holder_offsets += 0.15
+
+    publishBoardOffsetDelta(0.15);
+    publishHolderOffsetDelta(0.15);
 
     executeFollowJointTrajectory(['translate_mobile_base'], [0.15]);
   };
@@ -653,6 +703,8 @@ const weirdTesting = () => {
     offsets_from_center -= 0.15
         holder_offsets -= 0.15
 
+        publishBoardOffsetDelta(-0.15);
+    publishHolderOffsetDelta(-0.15);
     executeFollowJointTrajectory(['translate_mobile_base'], [-0.15]);
   };
 
@@ -660,12 +712,16 @@ const weirdTesting = () => {
     offsets_from_center += COLUMNLENGTH
         holder_offsets += COLUMNLENGTH
 
+        publishBoardOffsetDelta(COLUMNLENGTH);
+    publishHolderOffsetDelta(COLUMNLENGTH);
     executeFollowJointTrajectory(['translate_mobile_base'], [COLUMNLENGTH]);
   };
   const moveBaseForwardTiny = () => {
     offsets_from_center += COLUMNLENGTH/4
         holder_offsets += COLUMNLENGTH/4
 
+        publishBoardOffsetDelta(COLUMNLENGTH/4);
+    publishHolderOffsetDelta(COLUMNLENGTH/4);
     executeFollowJointTrajectory(['translate_mobile_base'], [COLUMNLENGTH/4]);
   };
 
@@ -673,14 +729,18 @@ const weirdTesting = () => {
     offsets_from_center -= COLUMNLENGTH
         holder_offsets -= COLUMNLENGTH
 
+        publishBoardOffsetDelta(-1 * COLUMNLENGTH);
+    publishHolderOffsetDelta(-1 * COLUMNLENGTH);
     executeFollowJointTrajectory(['translate_mobile_base'], [-1 * COLUMNLENGTH]);
   };
 
   const moveBaseBackwardMisaligned = () => {
-    offsets_from_center -= 0.025
-        holder_offsets -= 0.025
+    offsets_from_center -= 0.01
+        holder_offsets -= 0.01
 
-    executeFollowJointTrajectory(['translate_mobile_base'], [-0.025]);
+        publishBoardOffsetDelta(-0.01);
+    publishHolderOffsetDelta(-0.01);
+    executeFollowJointTrajectory(['translate_mobile_base'], [-0.01]);
   };
 
   const logPositions = () => {
@@ -697,7 +757,11 @@ const weirdTesting = () => {
   };
 
   const moveArmAllTheWayBack = () => {
-    executeFollowJointTrajectory(['wrist_extension'], [0]);
+    executeFollowJointTrajectory(['wrist_extension'], [0.1], [0.04]);
+  };
+
+  const moveArmAllTheWayForwards = () => {
+    executeFollowJointTrajectory(['wrist_extension'], [0.45], [0.04]);
   };
 
   const moveArmForwardOneTile = () => {
@@ -706,11 +770,11 @@ const weirdTesting = () => {
   };
 
   // Move base backward
-  const moveBaseBackward = () => {
+  /*const moveBaseBackward = () => {
     offsets_from_center -= 0.1
     executeFollowJointTrajectory(['translate_mobile_base'], [-0.1]);
 
-  };
+  };*/
 
   const rotateHeadClockwiseTest = () => {
     executeFollowJointTrajectory(['joint_head_pan'], [-Math.PI / 2])
@@ -936,11 +1000,13 @@ const weirdTesting = () => {
     offsets_from_center = 0;
     accumulated_rotation = 0;
     tabletop_offset = 0;
+    publishBoardCalibration(first_row);
   }
 
   const saveHolderCalibration = () => {
     holder_arm = jointState['position'][0];
     holder_offsets = 0;
+    publishHolderCalibration(holder_arm);
   }
 
   const outputCalibrations = () => {
@@ -980,6 +1046,9 @@ const weirdTesting = () => {
     let drive_target = (COLUMNLENGTH * (8 - column)) - offsets_from_center;
     offsets_from_center += drive_target
     holder_offsets += drive_target
+
+    publishBoardOffsetDelta(drive_target);
+    publishHolderOffsetDelta(drive_target);
     executeFollowJointTrajectory(['wrist_extension', 'translate_mobile_base'], [wrist_target, drive_target]);
   }
 
@@ -994,6 +1063,8 @@ const weirdTesting = () => {
     let drive_target = (HOLDERWIDTH * (1 - target)) - holder_offsets;
         offsets_from_center += drive_target
     holder_offsets += drive_target
+    publishBoardOffsetDelta(drive_target);
+    publishHolderOffsetDelta(drive_target);
     executeFollowJointTrajectory(['wrist_extension', 'translate_mobile_base'], [holder_arm, drive_target]);
 
 
@@ -1015,23 +1086,49 @@ const weirdTesting = () => {
   const returnToCenter = () => {
     let old_offset = offsets_from_center
     holder_offsets -= old_offset
-    offsets_from_center = 0
+    offsets_from_center -= old_offset
+    publishBoardOffsetDelta(old_offset);
+    publishHolderOffsetDelta(old_offset);
     executeFollowJointTrajectory(['translate_mobile_base'], [-old_offset])
     
   }
 
+  const returnToHolder = () => {
+    let old_offset = holder_offsets
+    holder_offsets -= old_offset
+    offsets_from_center -= old_offset
+    publishBoardOffsetDelta(old_offset);
+    publishHolderOffsetDelta(old_offset);
+    console.log("Moving " + -1*old_offset)
+    executeFollowJointTrajectory(['translate_mobile_base'], [-old_offset])
+    
+  }
+
+
+  const GetAndPlayLetter = () => {
+    let r = document.getElementById('row_num').value
+    let c = document.getElementById('column_num').value
+    let t = document.getElementById('holder_pos').value;
+
+    playWord([[t, r, c]])
+  }
+
+
+
   const playWord = (commands) => {
     let startWrist = jointState['position'][0];
     let trajectoryPoints = []
-
+    let cumulativeDelta = 0.0
+    
     trajectoryPoints.push({
             positions: [GRIPPER_OPEN , NEUTRAL_ELEV, startWrist, 0.0001 ],
             time_from_start: { secs: 1, nsecs: 0 },
+            velocities: [2.0, 0.02, 0.03, 0.08]
           });
     
     let secs = 2;
 
-    for (let i = 0; i < commands.length; i += 1) {
+    for (let i = 0; i < 1; i+= 1) { // i < commands.length; i += 1) {
       let holdtargetyeah = commands[i][0]
       let drive_target = (HOLDERWIDTH * (1 - holdtargetyeah)) - holder_offsets;
       if (drive_target == 0.0) {
@@ -1039,9 +1136,11 @@ const weirdTesting = () => {
       }
       offsets_from_center += drive_target;
       holder_offsets += drive_target;
+      cumulativeDelta += drive_target;
       trajectoryPoints.push({
         positions: [GRIPPER_OPEN , NEUTRAL_ELEV, holder_arm, drive_target ],
             time_from_start: { secs: secs, nsecs: 0 },
+            velocities: [2.0, 0.02, 0.035, 0.08]
       })
       secs += 2;
 
@@ -1049,18 +1148,22 @@ const weirdTesting = () => {
          {
             positions: [GRIPPER_OPEN, NEUTRAL_ELEV, holder_arm, 0.00001],
             time_from_start: { secs: secs, nsecs: 0 },
+            velocities: [2.0, 0.02, 0.035, 0.06]
           },
           {
             positions: [GRIPPER_OPEN, HOLDERTOP, holder_arm, 0.00001],
             time_from_start: { secs: secs + 2, nsecs: 0 },
+            velocities: [2.0, 0.02, 0.035, 0.06]
           },
           {
             positions: [GRIPPER_HOLDING, HOLDERTOP, holder_arm, 0.00001],
             time_from_start: { secs: secs + 6, nsecs: 0 },
+            velocities: [2.0, 0.02, 0.035, 0.06]
           },
           {
             positions: [GRIPPER_HOLDING,NEUTRAL_ELEV, holder_arm, 0.00001],
             time_from_start: { secs: secs + 10, nsecs: 0 },
+            velocities: [2.0, 0.02, 0.035, 0.06]
           },
       ])
       secs += 10;
@@ -1074,10 +1177,12 @@ const weirdTesting = () => {
       }
       offsets_from_center += drive_target2;
       holder_offsets += drive_target2;
+      cumulativeDelta += drive_target2
 
       trajectoryPoints.push({
         positions: [GRIPPER_HOLDING , NEUTRAL_ELEV, wrist_target, drive_target2],
             time_from_start: { secs: secs + 2, nsecs: 0 },
+            velocities: [2.0, 0.02, 0.035, 0.08]
       })
 
       secs += 2;
@@ -1086,23 +1191,38 @@ const weirdTesting = () => {
         {
             positions: [GRIPPER_HOLDING , NEUTRAL_ELEV, wrist_target, 0.00001],
             time_from_start: { secs: secs + 2, nsecs: 0 },
+            velocities: [2.0, 0.02, 0.035, 0.06]
           },
           {
             positions: [GRIPPER_HOLDING, TABLETOP+0.0175, wrist_target, 0.00001],
             time_from_start: { secs: secs + 4, nsecs: 0 },
+            velocities: [2.0, 0.02, 0.035, 0.06]
           },
           {
             positions: [GRIPPER_OPEN, TABLETOP+0.0175, wrist_target, 0.00001],
             time_from_start: { secs: secs + 7, nsecs: 0 },
+            velocities: [2.0, 0.02, 0.035, 0.06]
           },
           {
             positions: [GRIPPER_OPEN, NEUTRAL_ELEV, wrist_target, 0.00001],
             time_from_start: { secs: secs + 9, nsecs: 0 },
+            velocities: [2.0, 0.02, 0.035, 0.06]
           },
         ])
-
+      secs += 10;
 
     }
+    let old_offset = offsets_from_center
+    cumulativeDelta -= old_offset
+
+    holder_offsets -= old_offset
+    offsets_from_center -= old_offset
+    trajectoryPoints.push({
+      positions: [GRIPPER_OPEN, NEUTRAL_ELEV, 0.09, -old_offset],
+            time_from_start: { secs: secs + 3, nsecs: 0 },
+                        velocities: [2.0, 0.03, 0.035, 0.08]
+
+    })
 
     console.log("Final trajectory points:")
     console.log(trajectoryPoints)
@@ -1114,7 +1234,10 @@ const weirdTesting = () => {
         points: trajectoryPoints
       },
     });
+
     trajectoryClient.createClient(goal);
+    publishBoardOffsetDelta(cumulativeDelta);
+    publishHolderOffsetDelta(cumulativeDelta);
   } 
 
   // Called when the rosbridge websocket connection is successful
@@ -1150,10 +1273,23 @@ const weirdTesting = () => {
     console.log('Connection to websocket server closed.');
   });
 
+  const loadCalibrationData = () => {
+
+    let request = new ROSLIB.ServiceRequest({})
+    let calibration;
+    alignmentMathClient.callService(request, (response) => {calibration = response.message;
+      calibration_array = calibration.split(" ");
+    first_row = parseFloat(calibration_array[0]);
+    offsets_from_center = parseFloat(calibration_array[1]);
+    holder_arm = parseFloat(calibration_array[2]);
+    holder_offsets = parseFloat(calibration_array[3]);
+    });
+  }
+
   const getCalibrationData = () => {
     let request = new ROSLIB.ServiceRequest({})
     let calibration;
-    alignmentMathClient.callService(request, (response) => {calibration = response});
+    alignmentMathClient.callService(request, (response) => {calibration = response.message});
     console.log(calibration);
     return calibration;
   }
@@ -1297,6 +1433,8 @@ const weirdTesting = () => {
       <li><button onClick="moveArmForwardTiny()"> Move Arm Forward Tiny</button></li>
       <li><button onClick="moveArmBackwardTiny()">Move Arm Backward Tiny</button></li>
       <li><button onClick="moveArmAllTheWayBack()">Move Arm all the way back</button></li>
+            <li><button onClick="moveArmAllTheWayForwards()">Move Arm all the way Forwards</button></li>
+
       <li><button onClick="alignToArucoMarker([0, 1, 2, 3])">Align to Aruco</button></li>
       <li><button onClick="driveToCenterOfBoard([0, 2], [1, 3])">Drive to center of board</button></li>
       <li><button onClick="reachToFurthestRow([0, 1])">Reach to furthest row</button></li>
@@ -1308,9 +1446,14 @@ const weirdTesting = () => {
       <li><button onClick="moveGripperToTopRight()">Move Gripper to Top Right square</button></li>
       <li><button onClick="moveGripperToBottomLeft()"> Move Gripper to Bottom Left square</button></li>
       <li><button onClick="StowArm()"> Stow Arm</button></li>
-      <li><button onClick="playWord([[1, 8, 8], [3, 8, 9], [4, 8, 10], [5, 8, 11]])">Fuck you Naama</button></li>
+      <li><button onClick="DeployArm()"> Deploy Arm</button></li>
+      <li><button onClick="playWord([[3, 8, 9]])">Fuck you Naama</button></li>
+      <li><button onClick="GetAndPlayLetter()"> Get and Play Letter</button></li>
       <li><button onClick="weirdTesting()"> Testing</button></li>
       <li><button onClick="returnToCenter()">Return to center of board</button></li>
+            <li><button onClick="returnToHolder()">Return to leftmost holder slot</button></li>
+            <li><button onClick="loadCalibrationData()">Load Calibration Data</button></li>
+
     </ul>
   </div>
 </body>
